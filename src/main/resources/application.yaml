@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: auth
+  datasource:
+    url: jdbc:postgresql://localhost:5432/app
+    username: root
+    password: root
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+  docker:
+    compose:
+      enabled: false
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never
+    scheduler-name: authScheduler
+    overwrite-existing-jobs: true
+    wait-for-jobs-to-complete-on-shutdown: true
+    startup-delay: 5s
+    properties:
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.jobStore.isClustered: true
+      org.quartz.jobStore.tablePrefix: QRTZ_
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      org.quartz.jobStore.clusterCheckinInterval: "15000"
+      org.quartz.jobStore.misfireThreshold: "60000"
+      org.quartz.threadPool.threadCount: "5"
+  modulith:
+    events:
+      republish-outstanding-events-on-restart: false
+      staleness:
+        check-interval: 1m
+        published: 10m
+        processing: 30m
+        resubmitted: 10m
