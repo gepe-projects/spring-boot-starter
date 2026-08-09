@@ -2731,7 +2731,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/" + ApiVersions.CURRENT + "/auth")
 @RequiredArgsConstructor
 class AuthController {
 
@@ -3143,14 +3143,14 @@ export GOOGLE_CLIENT_SECRET=xxxx
 
 | Method | Route | Chain | Auth | Body/Header | Response |
 |---|---|---|---|---|---|
-| POST | `/api/auth/register` | api | — | `{ email, password }` | `{ accessToken, refreshToken, refreshTokenId, sessionId, userId }` |
-| POST | `/api/auth/login` | api | — | `{ email, password }` | token pair |
-| POST | `/api/auth/refresh` | api | — | `{ refreshToken }` | token pair baru |
-| POST | `/api/auth/logout` | api | Bearer | `{ refreshToken }` | 200 (session di-revoke; AT tetap valid sampai expiry) |
-| POST | `/api/auth/password` | api | Bearer | `{ newPassword }` | 200 (bind ke credentials, user google-only) |
-| GET | `/api/auth/sessions` | api | Bearer | `X-Refresh-Token` + `cursor`/`limit` | `{ items: SessionInfo[], nextCursor }` |
-| DELETE | `/api/auth/sessions/{refreshTokenId}` | api | Bearer | `X-Refresh-Token` | 200; **401/400** bila id = session saat ini |
-| DELETE | `/api/auth/sessions` | api | Bearer | `X-Refresh-Token` | 200 (revoke semua kecuali current) |
+| POST | `/api/v1/auth/register` | api | — | `{ email, password }` | `{ accessToken, refreshToken, refreshTokenId, sessionId, userId }` |
+| POST | `/api/v1/auth/login` | api | — | `{ email, password }` | token pair |
+| POST | `/api/v1/auth/refresh` | api | — | `{ refreshToken }` | token pair baru |
+| POST | `/api/v1/auth/logout` | api | Bearer | `{ refreshToken }` | 200 (session di-revoke; AT tetap valid sampai expiry) |
+| POST | `/api/v1/auth/password` | api | Bearer | `{ newPassword }` | 200 (bind ke credentials, user google-only) |
+| GET | `/api/v1/auth/sessions` | api | Bearer | `X-Refresh-Token` + `cursor`/`limit` | `{ items: SessionInfo[], nextCursor }` |
+| DELETE | `/api/v1/auth/sessions/{refreshTokenId}` | api | Bearer | `X-Refresh-Token` | 200; **401/400** bila id = session saat ini |
+| DELETE | `/api/v1/auth/sessions` | api | Bearer | `X-Refresh-Token` | 200 (revoke semua kecuali current) |
 | GET | `/oauth2/authorization/google` | web | — | — | redirect ke Google (backend) |
 | GET | `/login/oauth2/code/google` | web | — | — | callback backend → cookie + redirect |
 | POST | `/web/auth/login` | web | — | `{ email, password }` | token pair + `Set-Cookie: ACCESS_TOKEN` |

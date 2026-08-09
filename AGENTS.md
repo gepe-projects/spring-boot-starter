@@ -34,27 +34,32 @@
 
 ## Flyway
 
-- Platform/infra migrations live at the default `classpath:db/migration/` (flat):
-    - `V1__event_publication.sql` — modulith event publication registry table.
-    - `V2__quartz_tables.sql` — Quartz clustered scheduler tables.
-- Per-module schemas use subdirectories. When module schemas are added, list each path explicitly:
-  ```yaml
-  spring:
-    flyway:
-      locations:
-        - classpath:db/migration
-        - classpath:db/migration/user
-        - classpath:db/migration/notification
-  ```
-  Flyway does not recurse into subdirectories automatically.
+- **All migrations live flat** at `classpath:db/migration/` with **prefix per module** on file names.
+  Platform/infra migrations use no prefix; module migrations use `<module>_` prefix.
+  Example flat layout:
+    ```
+    db/migration/
+    ├── V1__event_publication.sql           ← platform (no prefix)
+    ├── V2__quartz_tables.sql               ← platform (no prefix)
+    ├── V3__auth_signing_keys.sql           ← module auth
+    ├── V4__auth_users.sql                  ← module auth
+    ├── V5__auth_refresh_tokens.sql          ← module auth
+    ├── V6__notification_subscriptions.sql   ← module notification
+    ```
+- **Version numbers are global across all modules** because Flyway 12.x shares a single version namespace
+  regardless of `locations`. Every migration file must have a unique version number, even across modules.
+- `spring.flyway.locations` is simply `classpath:db/migration` — no subdirectories needed.
+- When adding a new module, append migrations with the next global version number and module prefix
+  (e.g. `V6__notification_*.sql`).
 
 ---
 
 ## Spring Security
 
-- `spring-boot-starter-security` is on the classpath with **no custom `SecurityFilterChain` bean**. All endpoints are
-  secured by default (HTTP Basic, generated password) until a security config is added.
-- `spring-boot-starter-security-oauth2-client` is present but has no provider/client registration configured.
+- `spring-boot-starter-security` is on the classpath with a custom `SecurityFilterChain` bean (bearer-only JWT).
+  All endpoints are secured stateless via JWT Bearer token.
+- `spring-boot-starter-oauth2-resource-server` is on the classpath for JWT decoding.
+  There is no OAuth2 client registration configured — OAuth dance is handled by the frontend BFF.
 
 ---
 
@@ -173,14 +178,32 @@ com.gepe.app
    package-private, and depend only on `internal/service/` + `internal/dto/`. A controller is **NEVER** placed in `api/`
    — `api/` is for other *modules* to call, not for HTTP entry points.
 
+## API Versioning (MANDATORY)
+
+1. **URI-path versioning is the ONLY allowed strategy.** Every public endpoint lives under `/api/<version>/...`
+   (e.g. `/api/v1/auth/login`). Header, query-param, and media-type versioning are NOT used.
+2. The current version is defined **once** in `platform/web/api/ApiVersions.java` (`ApiVersions.CURRENT = "v1"`).
+   Controllers MUST build their `@RequestMapping` from this constant:
+   ```java
+   @RequestMapping("/api/" + ApiVersions.CURRENT + "/auth")
+   ```
+   NEVER hardcode `v1` (or any version literal) inside a controller's mapping.
+3. A **breaking change** → add a NEW controller annotated `/api/v2/...` in the module's `internal/delivery/http/`,
+   reusing the same internal services. Do NOT mutate the existing handler. Old versions stay live until deprecated.
+4. `AuthSecurityConfig` matches `/api/**` (AuthSecurityConfig.java:30), which already covers every version — no
+   security change is needed when adding a version.
+5. Keep `auth.md`'s endpoint tables in sync whenever a route or version changes.
+
 ---
 
 ## 3. Database & Schema Rules
 
-1. Each module has its own schema, with separate migration files at:
+1. Each module has its own schema, with migration files at:
    ```
-   src/main/resources/db/migration/<module-name>/V1__init.sql
+   src/main/resources/db/migration/V3__auth_signing_keys.sql
+   src/main/resources/db/migration/V4__auth_users.sql
    ```
+   (flat layout, see Flyway section above for naming convention).
 2. Entity MUST declare schema explicitly:
    ```java
    @Entity
@@ -191,8 +214,8 @@ com.gepe.app
    `user.users.id`). Store the ID as a plain column, resolve via `api`/event.
 4. **FORBIDDEN**: `@Entity` shared by 2 modules. If another module needs that data → create a DTO in `api`, don't share
    the entity.
-5. Add each new module path to `flyway.locations` (comma-separated or YAML list). Don't dump all migrations in one flat
-   folder.
+5. Add migration files directly in the flat `db/migration/` folder. Each module's migrations use a `<module>_` prefix
+   and the next global version number. Do NOT use per-module subdirectories.
 6. **DTO over entity at boundaries**: `@Repository` methods return JPA entities, which are package-private in
    `internal/`. A service MUST NOT return an entity across its package boundary — it converts to a boundary-safe DTO (a
    record) and returns that. DTOs are required at: module `api`, cross-sub-package calls, async/event boundaries, and
@@ -343,9 +366,10 @@ Don't create a new module when:
 2. ❌ Using `UUID.randomUUID()` (v4) or `UUID.nameUUIDFromBytes()` (v3) — ALL UUIDs must be v7 via `Uuidv7.generate()`.
 3. ❌ Adding cross-schema FKs because "joins are easier."
 4. ❌ Using plain `@EventListener` instead of `@ApplicationModuleListener`.
-5. ❌ Placing new *module* migrations directly in `db/migration` root without per-module subdirectories. (Exception:
-   infra migrations like `event_publication` and `QRTZ_*` tables live flat in `db/migration` — they're platform, not
-   module-owned.)
+5. ❌ Placing new *module* migrations in subdirectories under `db/migration/`. All migrations must be flat in the root
+   `db/migration/` folder with a `<module>_` prefix on the file name (e.g. `V3__auth_signing_keys.sql`).
+   Flyway 12.x shares one global version namespace regardless of locations — subdirectories cause version
+   conflicts.
 6. ❌ Sharing one entity across 2 modules to "avoid duplicating fields."
 7. ❌ Storing important state in local instance memory (e.g. `static Map` counter) assuming consistency across instances.
 8. ❌ Putting entity/repository/service/jwt/crypto classes directly under the module root instead of
@@ -355,6 +379,9 @@ Don't create a new module when:
 10. ❌ Creating a `publisher/` package/abstraction for events — publishing belongs inline in `service/`, where the
     transaction already lives.
 11. ❌ Using OFFSET/LIMIT pagination anywhere — the ONLY allowed strategy is cursor/keyset (§4).
+12. ❌ Hardcoding the API version in a controller's mapping (e.g. `@RequestMapping("/api/v1/auth")`) instead of
+    `@RequestMapping("/api/" + ApiVersions.CURRENT + "/auth")`, or using header/query-param/media-type versioning
+    instead of URI path versioning (§API Versioning).
 
 ---
 
