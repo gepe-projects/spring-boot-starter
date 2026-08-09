@@ -318,6 +318,18 @@ Setelah menerima `code` dari Google (langkah ⑤), backend melakukan:
        Publish **tidak** `UserRegistered` (user sudah ada, hanya mengikat identity baru).
 4. Issue `TokenResponse` + publish `UserAuthenticated`.
 
+> ⚠️  **PRE-ACCOUNT HIJACKING RISK** — Alur daftar credential **tidak** melakukan verifikasi
+> email (`emailVerifiedAt` tetap `null` pada register), dan login credential **tidak** menolak
+> user yang email-nya belum diverifikasi. Skenario: attacker daftar dahulu dengan
+> `victim@gmail.com` + password attacker (akun belum diverifikasi, tapi sudah bisa login).
+> Suatu saat korban login via Google dengan email yang sama → identity Google ditempelkan
+> ke akun yang sudah dikuasai attacker (auto‑link by email). Artinya korban memakai akun
+> yang attacker-nya tetap bisa login via password—permanen.
+>
+> Ini dikenal sebagai **pre‑hijacking** (Paverd et al., *Pre‑hijacking Attacks on Web User
+> Accounts*). **KEPUTUSAN PROYEK:** dibiarkan untuk MVP / internal tanpa biaya email provider.
+> **JANGAN** aktifkan auto‑link‑by‑email di produksi publik tanpa verifikasi email DAHULU.
+
 ---
 
 ## 7. Enkripsi & Kunci
@@ -424,6 +436,9 @@ File: `src/main/resources/i18n/auth/messages.properties` dan `messages_id.proper
 | `APP_SECURITY_OAUTH_REDIRECT_URI` | Tidak | `http://localhost:8080/auth/oauth/google/callback` | Callback URI (harus terdaftar di Google Console) |
 | `APP_SECURITY_OAUTH_FRONTEND_REDIRECT_URIS` | Tidak | `http://localhost:3000` | Origin frontend yang diizinkan (koma-separated) |
 | `APP_SECURITY_OAUTH_ONE_TIME_CODE_TTL` | Tidak | `5m` | Masa berlaku one‑time code (Duration) |
+| `APP_SECURITY_RATE_LIMIT_BASE` | Tidak | `1m` | Base delay exponential backoff login (Duration) |
+| `APP_SECURITY_RATE_LIMIT_MAX` | Tidak | `1h` | Max delay cap exponential backoff (Duration) |
+| `APP_SECURITY_RATE_LIMIT_MAX_ATTEMPTS` | Tidak | `5` | Jumlah percobaan sebelum lockout |
 | `APP_SECURITY_ISSUER` | Tidak | `http://localhost:8080` | Issuer claim di JWT |
 | `APP_SECURITY_ACCESS_TOKEN_TTL` | Tidak | `15m` | Access token time‑to‑live |
 | `APP_SECURITY_REFRESH_TOKEN_TTL` | Tidak | `30d` | Refresh token time‑to‑live |
@@ -479,3 +494,8 @@ Karena arsitektur sudah modular dengan `auth_identities`:
 | **Master key** | Dari env, tidak pernah di‑commit ke git |
 | **Private key signing** | Terenkripsi (AES‑GCM) di DB, tidak plaintext |
 | **No cross‑schema FK** | Data antar modul direferensi via ID, tidak via constraint database |
+| **Rate limit login/register** | Per email, exponential backoff (base 1m, max 1h, 5 attempts), Redis, hapus saat sukses |
+
+> ⚠️  **Credential login tidak mewajibkan verifikasi email.** Register langsung bisa login.
+> **Auto‑link Google‑by‑email** tetap aktif walaupun email belum diverifikasi — lihat §6 (Account Linking)
+> untuk penjelasan risiko **pre‑account hijacking**.

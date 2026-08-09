@@ -45,5 +45,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     int revokeAllExcept(@Param("userId") UUID userId, @Param("excludeId") UUID excludeId,
                         @Param("now") Instant now);
 
+    @Modifying
+    @Query("update RefreshToken rt set rt.revokedAt = :now, "
+           + "rt.status = com.gepe.app.auth.internal.entity.RefreshToken.Status.REVOKED "
+           + "where rt.sessionId = :sessionId "
+           + "and rt.status = com.gepe.app.auth.internal.entity.RefreshToken.Status.ACTIVE")
+    int revokeSessionFamily(@Param("sessionId") UUID sessionId, @Param("now") Instant now);
+
     List<RefreshToken> findBySessionId(UUID sessionId);
 }

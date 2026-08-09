@@ -55,8 +55,9 @@ public class RefreshTokenService {
                 .orElseThrow(() -> new ServiceException(AuthError.REFRESH_TOKEN_REVOKED));
 
         if (current.getStatus() == RefreshToken.Status.REVOKED) {
-            log.warn("Refresh token reuse detected: token_id={}, user_id={}",
-                     current.getId(), current.getUserId());
+            log.warn("Refresh token reuse detected — revoking entire session: token_id={}, user_id={}, session_id={}",
+                     current.getId(), current.getUserId(), current.getSessionId());
+            refreshTokenRepository.revokeSessionFamily(current.getSessionId(), Instant.now());
             throw new ServiceException(AuthError.REFRESH_TOKEN_REVOKED);
         }
 

@@ -88,3 +88,7 @@ app:
       redirect-uri: ${APP_SECURITY_OAUTH_REDIRECT_URI:http://localhost:8080/auth/oauth/google/callback}
       frontend-redirect-uris: ${APP_SECURITY_OAUTH_FRONTEND_REDIRECT_URIS:http://localhost:3000}
       one-time-code-ttl: 5m
+    rate-limit:
+      base-delay: ${APP_SECURITY_RATE_LIMIT_BASE:1m}
+      max-delay: ${APP_SECURITY_RATE_LIMIT_MAX:1h}
+      max-attempts: ${APP_SECURITY_RATE_LIMIT_MAX_ATTEMPTS:5}

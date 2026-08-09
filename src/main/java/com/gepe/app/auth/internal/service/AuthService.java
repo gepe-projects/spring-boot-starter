@@ -33,17 +33,26 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final JwtService jwtService;
     private final PasswordHasher passwordHasher;
+    private final LoginRateLimiter loginRateLimiter;
     private final ApplicationEventPublisher events;
 
     // ── login credentials ──
     public TokenResponse login(String email, String password, String deviceInfo, String ipAddress) {
+        loginRateLimiter.assertAllowed(email);
+
         AuthIdentity cred = authIdentityRepository
                 .findByProviderAndProviderId(AuthIdentity.PROVIDER_CREDENTIALS, email)
-                .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
+                .orElseThrow(() -> {
+                    loginRateLimiter.onFailure(email);
+                    return new ServiceException(AuthError.INVALID_CREDENTIALS);
+                });
 
         if (!passwordHasher.matches(password, cred.getPasswordHash())) {
+            loginRateLimiter.onFailure(email);
             throw new ServiceException(AuthError.INVALID_CREDENTIALS);
         }
+
+        loginRateLimiter.onSuccess(email);
 
         User user = userRepository.findById(cred.getUserId())
                 .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
@@ -83,7 +92,10 @@ public class AuthService {
 
     // ── register via credentials (email + password) ──
     public TokenResponse register(String email, String password, String deviceInfo, String ipAddress) {
+        loginRateLimiter.assertAllowed(email);
+
         if (userRepository.existsByEmail(email)) {
+            loginRateLimiter.onFailure(email);
             throw new ServiceException(AuthError.EMAIL_ALREADY_LINKED);
         }
         User user = new User(email, null);
@@ -93,6 +105,7 @@ public class AuthService {
                 user.getId(), AuthIdentity.PROVIDER_CREDENTIALS, email, email,
                 passwordHasher.hash(password)));
 
+        loginRateLimiter.onSuccess(email);
         events.publishEvent(new UserRegistered(user.getId(), user.getEmail()));
         return issueTokens(user, deviceInfo, ipAddress);
     }
