@@ -3,6 +3,10 @@
 > Self-contained JWT auth (RSA-signed, AES-256-GCM encrypted keys at rest, deny-list via Redis).
 > Satu mekanisme token, dua jalur: **Bearer header** (mobile) + **cookie** (webapp).
 > Semua stateless. Principal = `UUID` — kompatibel dengan `RequestContext.getCurrentUserId()`.
+>
+> **Kepatuhan arsitektur:** dokumen ini mengikuti `AGENTS.md` — `internal/` **mandatory** untuk setiap modul,
+> `api/` khusus public contract, controller berada di `internal/delivery/http`, DTO boundary-safe di `internal/dto/`,
+> dan Quartz `Job` (pekerjaan) selalu dipisah dari `*Scheduler` (jadwal).
 
 ---
 
@@ -17,7 +21,7 @@
   Lain    ───►  Chain 3  catch-all → deny                  │
                     │                                      │
                     ▼                                      │
-              JWT Decoder (DbJwkSource → signing_keys)      │
+              JWT Decoder (DbJwtDecoder → signing_keys)     │
               Redis deny-list (jti → TTF = expires_at)     │
               Refresh token opaque → refresh_tokens table   │
                     │                                      │
@@ -38,78 +42,103 @@
 | Private key at-rest | Encode AES-256-GCM sebelum masuk `signing_keys` |
 | Master key | Env `MASTER_KEY_CURRENT` + `MASTER_KEY_PREVIOUS` (dual) |
 | Cookie | `HttpOnly`, `Secure`, `SameSite=Strict` + **CSRF aktif** di chain `/web/**` |
-| Masa depan OAuth Google | Flag siap: `AuthService.authenticate(...)` di-extend handler |
+| Masa depan OAuth Google | Flag siap: `AuthService.login(...)` di-extend handler |
 
 ---
 
 ## Daftar File yang Dibuat / Diubah
 
-### File baru (dibuat)
+### Struktur (per AGENTS.md)
 
 ```
-src/main/java/com/gepe/app/auth/
-├── package-info.java
-├── CurrentUser.java
-├── config/
-│   └── SecurityConfig.java
-├── exception/
-│   └── AuthError.java
-├── internal/
-│   └── entity/
-│       ├── SigningKey.java
-│       ├── RefreshToken.java
-│       └── UserCredential.java
-├── cookie/
-│   └── CookieAuthenticationFilter.java
-├── jwt/
-│   ├── JwtConfig.java
-│   ├── JwtProperties.java
-│   ├── JwtTokenService.java
-│   ├── JwtClaims.java
-│   ├── DbJwtDecoder.java
-│   └── JwtAuthenticationToken.java
-├── crypto/
-│   ├── AesGcmService.java
-│   ├── RsaKeyService.java
-│   └── MasterKeyProvider.java
-├── keyrotation/
-│   ├── SigningKeyStatus.java
-│   ├── SigningKeyData.java
-│   ├── SigningKeyService.java
-│   ├── SigningKeyRepository.java
-│   ├── SigningKeyRotationJob.java
-│   ├── SigningKeyRotationScheduler.java
-│   ├── MasterKeyRotationJob.java
-│   ├── MasterKeyRotationScheduler.java
-│   └── SigningKeySeeder.java
-├── refresh/
-│   ├── RefreshTokenRepository.java
-│   └── RefreshTokenService.java
-├── credential/
-│   ├── UserCredentialRepository.java
-│   └── UserCredentialVerifier.java
-├── web/
-│   ├── AuthService.java
-│   ├── api/
-│   │   ├── AuthController.java
-│   │   ├── LoginRequest.java
-│   │   ├── RefreshRequest.java
-│   │   └── TokenResponse.java
-│   └── web/
-│       └── AuthWebController.java
-└── deny/
-    ├── AccessTokenDenyList.java
-    └── RedisConfig.java
+src/main/java/com/gepe/app/
+├── AuthApplication.java                        ← @Modulith(sharedModules = "platform")
+├── auth/
+│   ├── api/                                    ← ONLY public types (inter-module contract)
+│   │   ├── AuthApi.java                        ← public interface (SYNC calls)
+│   │   ├── CurrentUser.java                    ← public DTO (Principal info)
+│   │   └── UserAuthenticated.java              ← public event record (ASYNC)
+│   └── internal/                               ← MANDATORY. Semua implementasi. Package-private by default.
+│       ├── entity/                             ← JPA entities, schema = "auth"
+│       │   ├── SigningKey.java
+│       │   ├── RefreshToken.java
+│       │   └── UserCredential.java
+│       ├── repository/                         ← Spring Data JPA (return entities — internal only)
+│       │   ├── SigningKeyRepository.java
+│       │   ├── RefreshTokenRepository.java
+│       │   └── UserCredentialRepository.java
+│       ├── service/                            ← use-case orchestration; entity → DTO di boundary;
+│       │   │                                      publish event via ApplicationEventPublisher
+│       │   ├── AuthService.java
+│       │   ├── AuthApiImpl.java                ← implementasi public AuthApi
+│       │   ├── SigningKeyService.java
+│       │   └── RefreshTokenService.java
+│       ├── jwt/                                ← token infrastructure
+│       │   ├── JwtProperties.java              ← @ConfigurationProperties
+│       │   ├── JwtConfig.java                  ← @EnableConfigurationProperties
+│       │   ├── JwtService.java                 ← sign token (sebelumnya JwtTokenService)
+│       │   ├── JwtClaims.java                  ← helper klaim
+│       │   ├── JwtAuthenticationToken.java
+│       │   └── DbJwtDecoder.java               ← JwtDecoder berbasis signing_keys table
+│       ├── crypto/                             ← cryptography
+│       │   ├── PasswordHasher.java             ← membungkus PasswordEncoder
+│       │   ├── MasterKeyProvider.java
+│       │   ├── AesGcmService.java
+│       │   └── RsaKeyService.java
+│       ├── deny/                               ← access-token deny-list (Redis)
+│       │   ├── RedisConfig.java
+│       │   └── AccessTokenDenyList.java
+│       ├── cookie/                             ← cookie auth filter (chain /web/**)
+│       │   └── CookieAuthenticationFilter.java
+│       ├── job/                                ← Quartz Job (pekerjaan) + *Scheduler (jadwal) — selalu dipisah
+│       │   ├── SigningKeyRotationJob.java
+│       │   ├── SigningKeyRotationScheduler.java
+│       │   ├── MasterKeyRotationJob.java
+│       │   ├── MasterKeyRotationScheduler.java
+│       │   └── SigningKeySeeder.java           ← ApplicationRunner (bootstrap awal)
+│       ├── dto/                                ← boundary-safe records (dipakai service ↔ delivery/http)
+│       │   ├── SigningKeyData.java
+│       │   ├── SigningKeyStatus.java
+│       │   ├── LoginRequest.java
+│       │   ├── RefreshRequest.java
+│       │   ├── TokenResponse.java
+│       │   ├── TokenWithId.java
+│       │   └── RotatedToken.java
+│       ├── exception/
+│       │   └── AuthError.java
+│       ├── config/
+│       │   └── AuthSecurityConfig.java         ← 3 SecurityFilterChain + PasswordEncoder bean
+│       └── delivery/
+│           └── http/
+│               ├── AuthController.java         ← REST entry (Bearer /api/auth/**). package-private.
+│               └── AuthWebController.java      ← REST entry (Cookie /web/auth/**). package-private.
+└── platform/                                   ← shared infra (tidak berubah)
 ```
 
-### File existing (diubah — **jelas didokumentasikan, jangan eksekusi otomatis**)
+### Kebijakan visibilitas (penting)
+
+1. `api/` → **selalu `public`** — ini satu-satunya kontrak antar modul.
+2. `internal/**` → **`package-private` secara default**. Jenis yang harus dirujuk **lintas sub-package**
+   (orchestrasi service, injeksi DI antar sub-package, dan controller di `internal/delivery/http`) dinyatakan `public` —
+   ini persis pengecualian *"NEVER public unless absolutely unavoidable"* di AGENTS.md §2.2.
+   Contoh: `AuthService` dipakai `AuthController` (sub-package berbeda) → `public`; `SigningKeyRepository` dipakai
+   `SigningKeyService` (sub-package berbeda) → `public`.
+3. Yang tetap `package-private`: helper lokal yang tidak keluar dari sub-package-nya sendiri
+   (mis. `JwtConfig`, `RedisConfig`, `SigningKeyStatus`, `JwtClaims` bila hanya dipakai dalam `internal/jwt`).
+4. Batas antar **modul** tetap di-enforce oleh `ModularityTests` — `internal/**` dari modul lain
+   **tidak boleh di-import** (lihat §Verify).
+
+> Intinya: `internal/` menjaga satu unit implementasi tetap rapat secara *paket*, dan `ModularityTests`
+> yang menjaga agar modul lain tidak bisa menyentuhnya — dua lapis pertahanan yang saling melengkapi.
+
+### File existing (diubah — **jelas didokumentasikan**)
 
 | File | Perubahan |
 |---|---|
 | `pom.xml` | Tambah `spring-boot-starter-oauth2-resource-server`, `spring-boot-starter-data-redis` |
-| `application.yaml` | Tambah `spring.flyway.locations`, `app.security.*`, redis config |
+| `application.yaml` | Tambah `spring.flyway.locations` (bukan `callback-locations`), `app.security.*`, redis config |
 | `I18nConfig.java` | Tambah basename `classpath:i18n/auth/messages` |
-| `src/test/java/.../ModularityTests.java` | Tidak perlu diubah (test akan tetap hijau karena aturan modulith terpenuhi) |
+| `src/test/java/.../ModularityTests.java` | Tidak perlu diubah (test tetap hijau selama aturan modulith terpenuhi) |
 
 ---
 
@@ -172,6 +201,9 @@ app:
     deny-list-prefix: revoked_at
 ```
 
+> **Jangan** pakai `spring.flyway.callback-locations` — itu untuk SQL callback, bukan lokasi migrasi.
+> Lokasi migrasi modul di-declare via `spring.flyway.locations` (lihat AGENTS.md §Flyway).
+
 ---
 
 ## 3. I18n Config — ubah `I18nConfig.java`
@@ -206,15 +238,91 @@ import org.springframework.modulith.ApplicationModule;
 
 ## 5. API (Public Contract for Other Modules)
 
-### `src/main/java/com/gepe/app/auth/CurrentUser.java`
+> Hanya jenis di bawah ini yang boleh di-import modul lain. Tidak ada `public` lain di luar `api/`.
+
+### 5.1 `src/main/java/com/gepe/app/auth/api/CurrentUser.java`
 
 ```java
-package com.gepe.app.auth;
+package com.gepe.app.auth.api;
 
 import java.util.UUID;
 
 public record CurrentUser(UUID userId, String email) {}
 ```
+
+### 5.2 `src/main/java/com/gepe/app/auth/api/AuthApi.java`
+
+```java
+package com.gepe.app.auth.api;
+
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Synchronous contract untuk modul lain (prioritas 2 di AGENTS.md §4).
+ * Implementasi hidup di auth.internal.service.AuthApiImpl.
+ */
+public interface AuthApi {
+
+    Optional<CurrentUser> findByUserId(UUID userId);
+
+    boolean existsByEmail(String email);
+}
+```
+
+### 5.3 `src/main/java/com/gepe/app/auth/api/UserAuthenticated.java`
+
+```java
+package com.gepe.app.auth.api;
+
+import java.util.UUID;
+
+/** Event yang dipublish setelah login sukses (prioritas 1 di AGENTS.md §4 — async side-effect). */
+public record UserAuthenticated(UUID userId, String email) {}
+```
+
+> **Pola event wajib:** dipublish dari `internal/service/` (satu-satunya tempat boleh
+> `ApplicationEventPublisher.publishEvent(...)`), dikonsumsi modul lain dengan
+> `@ApplicationModuleListener` (bukan `@EventListener`), dan listener **harus idempotent**
+> karena bisa di-retry saat instance restart.
+
+### 5.4 Implementasi AuthApi — `internal/service/AuthApiImpl.java`
+
+```java
+package com.gepe.app.auth.internal.service;
+
+import com.gepe.app.auth.api.AuthApi;
+import com.gepe.app.auth.api.CurrentUser;
+import com.gepe.app.auth.internal.entity.UserCredential;
+import com.gepe.app.auth.internal.repository.UserCredentialRepository;
+import java.util.Optional;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class AuthApiImpl implements AuthApi {
+
+    private final UserCredentialRepository credentialRepository;
+
+    @Override
+    public Optional<CurrentUser> findByUserId(UUID userId) {
+        return credentialRepository.findByUserId(userId)
+                .map(u -> new CurrentUser(u.getUserId(), u.getEmail()));
+    }
+
+    @Override
+    public boolean existsByEmail(String email) {
+        return credentialRepository.existsByEmail(email);
+    }
+}
+```
+
+> **DTO over entity di boundary:** `AuthApiImpl` menerima entity (internal) dan mengubahnya ke
+> `CurrentUser` (public DTO) sebelum keluar modul. Entity `UserCredential` **tidak pernah** bocor keluar.
 
 ---
 
@@ -226,17 +334,17 @@ public record CurrentUser(UUID userId, String email) {}
 > jangan lempar `ServiceException` — hasilnya **500**, bukan 401. Pakai `JwtException` /
 > `BadCredentialsException` agar Spring mengembalikan **401 secara otomatis**.
 
-### `src/main/java/com/gepe/app/auth/exception/AuthError.java`
+### `src/main/java/com/gepe/app/auth/internal/exception/AuthError.java`
 
 ```java
-package com.gepe.app.auth.exception;
+package com.gepe.app.auth.internal.exception;
 
 import com.gepe.app.platform.exception.ErrorCode;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-enum AuthError implements ErrorCode {
+public enum AuthError implements ErrorCode {
 
     // ── credentials ──
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "auth.invalid_credentials"),
@@ -323,13 +431,17 @@ auth.logout_success=Logout berhasil
 
 ## 8. Security Configuration
 
-### `src/main/java/com/gepe/app/auth/config/SecurityConfig.java`
+### `src/main/java/com/gepe/app/auth/internal/config/AuthSecurityConfig.java`
+
+> `CookieAuthenticationFilter` harus `public` karena di-inject dari sub-package berbeda
+> (pengecualian "absolutely unavoidable" AGENTS.md §2.2). `JwtDecoder` di-inject via interface,
+> sehingga `DbJwtDecoder` cukup `@Component` (tanpa referensi nama kelas di config ini).
 
 ```java
-package com.gepe.app.auth;
+package com.gepe.app.auth.internal.config;
 
-import com.gepe.app.auth.cookie.CookieAuthenticationFilter;
-import com.gepe.app.auth.jwt.DbJwtDecoder;
+import com.gepe.app.auth.internal.cookie.CookieAuthenticationFilter;
+import com.gepe.app.auth.internal.crypto.PasswordHasher;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -339,16 +451,17 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-@Configuration
-class SecurityConfig {
+@Configuration(proxyBeanMethods = false)
+class AuthSecurityConfig {
 
     @Bean
     AuthenticationManager authenticationManager(AuthenticationConfiguration config)
@@ -359,6 +472,11 @@ class SecurityConfig {
     @Bean
     JwtAuthenticationProvider jwtAuthenticationProvider(JwtDecoder jwtDecoder) {
         return new JwtAuthenticationProvider(jwtDecoder);
+    }
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     // ──────────────────────────────────────────────
@@ -387,7 +505,7 @@ class SecurityConfig {
         http.securityMatcher("/web/**");
         http.addFilterBefore(cookieFilter, UsernamePasswordAuthenticationFilter.class);
         http.oauth2ResourceServer(o -> o.jwt(j -> j.decoder(jwtDecoder)));
-        http.csrf(CsrfConfigurer::disable);
+        http.csrf(AbstractHttpConfigurer::disable);
         http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         return http.build();
     }
@@ -411,16 +529,16 @@ class SecurityConfig {
 > - `jwtAuthenticationProvider` → terdaftar otomatis oleh Spring Boot sebagai `AuthenticationProvider` karena return type-nya `JwtAuthenticationProvider`.
 > - `DbJwtDecoder` (lihat bagian JWT Decoder) → bean `JwtDecoder` yang membaca public key dari DB.
 > - Kedua chain (`api` dan `web`) memakai decoder yang sama — satu mekanisme token.
-> - CSRF aktif hanya di chain `web` (cookie), tidak di `api` (Bearer).
+> - `PasswordEncoder` didefinisikan di sini dan dibungkus `PasswordHasher` (lihat §11.4).
 
 ---
 
 ## 9. JWT Infrastructure
 
-### 9.1 `src/main/java/com/gepe/app/auth/jwt/JwtProperties.java`
+### 9.1 `src/main/java/com/gepe/app/auth/internal/jwt/JwtProperties.java`
 
 ```java
-package com.gepe.app.auth.jwt;
+package com.gepe.app.auth.internal.jwt;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -478,26 +596,27 @@ public record JwtProperties(
 }
 ```
 
-### 9.2 `src/main/java/com/gepe/app/auth/jwt/JwtConfig.java`
+### 9.2 `src/main/java/com/gepe/app/auth/internal/jwt/JwtConfig.java`
 
 ```java
-package com.gepe.app.auth.jwt;
+package com.gepe.app.auth.internal.jwt;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(JwtProperties.class)
 class JwtConfig {
 }
 ```
 
-### 9.3 `src/main/java/com/gepe/app/auth/jwt/JwtClaims.java`
+### 9.3 `src/main/java/com/gepe/app/auth/internal/jwt/JwtClaims.java`
 
 > **Jalur error**: security-chain — pakai `JwtException` (bukan `ServiceException`) → 401 otomatis.
+> `public` karena dipakai juga oleh `internal/service/AuthService` (sub-package berbeda).
 
 ```java
-package com.gepe.app.auth.jwt;
+package com.gepe.app.auth.internal.jwt;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -508,7 +627,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
 import org.springframework.security.oauth2.jwt.JwtException;
 
-final class JwtClaims {
+public final class JwtClaims {
 
     static final String CLAIM_EMAIL = "email";
     static final String CLAIM_USER_ID = "userId";
@@ -516,7 +635,7 @@ final class JwtClaims {
 
     private JwtClaims() {}
 
-    static UUID getUserId(Jwt jwt) {
+    public static UUID getUserId(Jwt jwt) {
         Objects.requireNonNull(jwt, "jwt must not be null");
         String sub = jwt.getClaimAsString(JwtClaimNames.SUB);
         if (sub == null || sub.isBlank()) throw new JwtException("Missing sub claim");
@@ -527,20 +646,20 @@ final class JwtClaims {
         }
     }
 
-    static String getEmail(Jwt jwt) {
+    public static String getEmail(Jwt jwt) {
         Objects.requireNonNull(jwt, "jwt must not be null");
         String email = jwt.getClaimAsString(CLAIM_EMAIL);
         if (email == null) throw new JwtException("Missing email claim");
         return email;
     }
 
-    static List<String> getRoles(Jwt jwt) {
+    public static List<String> getRoles(Jwt jwt) {
         Objects.requireNonNull(jwt, "jwt must not be null");
         List<String> roles = jwt.getClaimAsStringList(CLAIM_ROLES);
         return roles != null ? List.copyOf(roles) : List.of();
     }
 
-    static UUID getJti(Jwt jwt) {
+    public static UUID getJti(Jwt jwt) {
         Objects.requireNonNull(jwt, "jwt must not be null");
         String id = jwt.getId();
         if (id == null || id.isBlank()) throw new JwtException("Missing jti claim");
@@ -551,14 +670,14 @@ final class JwtClaims {
         }
     }
 
-    static Instant getExpiresAt(Jwt jwt) {
+    public static Instant getExpiresAt(Jwt jwt) {
         Objects.requireNonNull(jwt, "jwt must not be null");
         Instant expiresAt = jwt.getExpiresAt();
         if (expiresAt == null) throw new JwtException("Missing exp claim");
         return expiresAt;
     }
 
-    static Duration ttlUntilExpiry(Jwt jwt) {
+    public static Duration ttlUntilExpiry(Jwt jwt) {
         Instant expiresAt = getExpiresAt(jwt);
         Duration remaining = Duration.between(Instant.now(), expiresAt);
         return remaining.isNegative() ? Duration.ZERO : remaining;
@@ -566,21 +685,22 @@ final class JwtClaims {
 }
 ```
 
-### 9.4 `src/main/java/com/gepe/app/auth/jwt/JwtTokenService.java`
+### 9.4 `src/main/java/com/gepe/app/auth/internal/jwt/JwtService.java`
 
 > **Jalur error**: service/controller — `ServiceException(AuthError.*)` diterjemahkan `GlobalExceptionHandler` → i18n.
+> `public` karena dipakai `AuthService` (sub-package berbeda).
 
 ```java
-package com.gepe.app.auth.jwt;
+package com.gepe.app.auth.internal.jwt;
 
-import static com.gepe.app.auth.jwt.JwtClaims.CLAIM_EMAIL;
-import static com.gepe.app.auth.jwt.JwtClaims.CLAIM_ROLES;
-import static com.gepe.app.auth.jwt.JwtClaims.CLAIM_USER_ID;
+import static com.gepe.app.auth.internal.jwt.JwtClaims.CLAIM_EMAIL;
+import static com.gepe.app.auth.internal.jwt.JwtClaims.CLAIM_ROLES;
+import static com.gepe.app.auth.internal.jwt.JwtClaims.CLAIM_USER_ID;
 
-import com.gepe.app.auth.crypto.RsaKeyService;
-import com.gepe.app.auth.exception.AuthError;
-import com.gepe.app.auth.keyrotation.SigningKeyData;
-import com.gepe.app.auth.keyrotation.SigningKeyService;
+import com.gepe.app.auth.internal.crypto.RsaKeyService;
+import com.gepe.app.auth.internal.dto.SigningKeyData;
+import com.gepe.app.auth.internal.exception.AuthError;
+import com.gepe.app.auth.internal.service.SigningKeyService;
 import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.platform.support.Uuidv7;
 import com.nimbusds.jose.JOSEObjectType;
@@ -601,13 +721,13 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-class JwtTokenService {
+public class JwtService {
 
     private final SigningKeyService signingKeyService;
     private final RsaKeyService rsaKeyService;
     private final JwtProperties properties;
 
-    SignedJWT issueAccessToken(UUID userId, String email, List<String> roles) {
+    public SignedJWT issueAccessToken(UUID userId, String email, List<String> roles) {
         Objects.requireNonNull(userId, "userId must not be null");
         Objects.requireNonNull(email, "email must not be null");
         if (email.isBlank()) throw new ServiceException(AuthError.TOKEN_INVALID_CLAIM);
@@ -653,26 +773,27 @@ class JwtTokenService {
 ```
 
 > **Kunci**: `userId` & `email` di-guard null → `TOKEN_INVALID_CLAIM`. `roles` null → `List.of()`.
-> `SigningKeyData` adalah DTO dari `SigningKeyService` — bukan entity langsung.
+> `SigningKeyData` adalah DTO dari `internal/dto` — bukan entity langsung (AGENTS.md §3.6).
 
-### 9.5 `src/main/java/com/gepe/app/auth/jwt/JwtAuthenticationToken.java`
+### 9.5 `src/main/java/com/gepe/app/auth/internal/jwt/JwtAuthenticationToken.java`
 
 ```java
-package com.gepe.app.auth.jwt;
+package com.gepe.app.auth.internal.jwt;
 
 import java.util.Collection;
 import java.util.UUID;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 class JwtAuthenticationToken extends AbstractAuthenticationToken {
 
     private final UUID userId;
-    private final org.springframework.security.oauth2.jwt.Jwt jwt;
+    private final Jwt jwt;
 
     JwtAuthenticationToken(
             UUID userId,
-            org.springframework.security.oauth2.jwt.Jwt jwt,
+            Jwt jwt,
             Collection<? extends GrantedAuthority> authorities) {
         super(authorities);
         this.userId = userId;
@@ -692,15 +813,15 @@ class JwtAuthenticationToken extends AbstractAuthenticationToken {
 }
 ```
 
-### 9.6 `src/main/java/com/gepe/app/auth/jwt/DbJwtDecoder.java`
+### 9.6 `src/main/java/com/gepe/app/auth/internal/jwt/DbJwtDecoder.java`
 
 > **Jalur error**: security-chain — `JwtException` → 401 otomatis. Mengkonsumsi DTO `SigningKeyData` dari `SigningKeyService`.
 
 ```java
-package com.gepe.app.auth.jwt;
+package com.gepe.app.auth.internal.jwt;
 
-import com.gepe.app.auth.keyrotation.SigningKeyData;
-import com.gepe.app.auth.keyrotation.SigningKeyService;
+import com.gepe.app.auth.internal.dto.SigningKeyData;
+import com.gepe.app.auth.internal.service.SigningKeyService;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -780,10 +901,12 @@ class DbJwtDecoder implements JwtDecoder {
 
 ## 10. Cookie Authentication Filter
 
-### `src/main/java/com/gepe/app/auth/cookie/CookieAuthenticationFilter.java`
+### `src/main/java/com/gepe/app/auth/internal/cookie/CookieAuthenticationFilter.java`
+
+> `public` karena di-inject dari `internal/config` (sub-package berbeda) — pengecualian AGENTS.md §2.2.
 
 ```java
-package com.gepe.app.auth.cookie;
+package com.gepe.app.auth.internal.cookie;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -793,8 +916,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.stream.Stream;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -805,12 +928,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
-class CookieAuthenticationFilter extends OncePerRequestFilter {
-
-    private static final String COOKIE_NAME = "ACCESS_TOKEN";
+public class CookieAuthenticationFilter extends OncePerRequestFilter {
 
     private final AuthenticationManager authenticationManager;
+    private final String cookieName;
+
+    public CookieAuthenticationFilter(
+            AuthenticationManager authenticationManager,
+            @Value("${app.security.cookie.name:ACCESS_TOKEN}") String cookieName) {
+        this.authenticationManager = authenticationManager;
+        this.cookieName = cookieName;
+    }
 
     @Override
     protected void doFilterInternal(
@@ -838,7 +966,7 @@ class CookieAuthenticationFilter extends OncePerRequestFilter {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) return Optional.empty();
         return Stream.of(cookies)
-                .filter(c -> COOKIE_NAME.equals(c.getName()))
+                .filter(c -> cookieName.equals(c.getName()))
                 .map(Cookie::getValue)
                 .findFirst();
     }
@@ -849,13 +977,13 @@ class CookieAuthenticationFilter extends OncePerRequestFilter {
 
 ## 11. Encryption / Cryptography
 
-### 11.1 `src/main/java/com/gepe/app/auth/crypto/MasterKeyProvider.java`
+### 11.1 `src/main/java/com/gepe/app/auth/internal/crypto/MasterKeyProvider.java`
 
 ```java
-package com.gepe.app.auth.crypto;
+package com.gepe.app.auth.internal.crypto;
 
+import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.platform.exception.ServiceException;
-import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -866,7 +994,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-class MasterKeyProvider {
+public class MasterKeyProvider {
 
     private static final String ENV_CURRENT = "MASTER_KEY_CURRENT";
     private static final String ENV_PREVIOUS = "MASTER_KEY_PREVIOUS";
@@ -885,7 +1013,7 @@ class MasterKeyProvider {
         }
     }
 
-    SecretKey getCurrent() {
+    public SecretKey getCurrent() {
         SecretKey key = keys.get(KEY_ID_CURRENT);
         if (key == null) {
             throw new ServiceException(AuthError.MASTER_KEY_INVALID);
@@ -893,7 +1021,7 @@ class MasterKeyProvider {
         return key;
     }
 
-    SecretKey getById(String keyId) {
+    public SecretKey getById(String keyId) {
         SecretKey key = keys.get(keyId);
         if (key == null) {
             throw new ServiceException(AuthError.MASTER_KEY_INVALID);
@@ -901,15 +1029,15 @@ class MasterKeyProvider {
         return key;
     }
 
-    boolean hasPrevious() {
+    public boolean hasPrevious() {
         return keys.containsKey(KEY_ID_PREVIOUS);
     }
 
-    String getCurrentKeyId() {
+    public String getCurrentKeyId() {
         return KEY_ID_CURRENT;
     }
 
-    String getPreviousKeyId() {
+    public String getPreviousKeyId() {
         return KEY_ID_PREVIOUS;
     }
 
@@ -935,11 +1063,13 @@ class MasterKeyProvider {
 }
 ```
 
-### 11.2 `src/main/java/com/gepe/app/auth/crypto/AesGcmService.java`
+### 11.2 `src/main/java/com/gepe/app/auth/internal/crypto/AesGcmService.java`
 
 ```java
-package com.gepe.app.auth.crypto;
+package com.gepe.app.auth.internal.crypto;
 
+import com.gepe.app.auth.internal.exception.AuthError;
+import com.gepe.app.platform.exception.ServiceException;
 import java.security.SecureRandom;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -949,7 +1079,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-class AesGcmService {
+public class AesGcmService {
 
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
@@ -957,7 +1087,7 @@ class AesGcmService {
 
     private final MasterKeyProvider masterKeyProvider;
 
-    byte[] encrypt(byte[] plaintext) {
+    public byte[] encrypt(byte[] plaintext) {
         try {
             SecretKey key = masterKeyProvider.getCurrent();
             byte[] iv = new byte[GCM_IV_LENGTH];
@@ -973,12 +1103,11 @@ class AesGcmService {
             System.arraycopy(ciphertext, 0, result, iv.length, ciphertext.length);
             return result;
         } catch (Exception e) {
-            throw new com.gepe.app.platform.exception.ServiceException(
-                    AuthError.ENCRYPTION_FAILED);
+            throw new ServiceException(AuthError.ENCRYPTION_FAILED);
         }
     }
 
-    byte[] decrypt(byte[] ciphertext, String keyId) {
+    public byte[] decrypt(byte[] ciphertext, String keyId) {
         try {
             SecretKey key = masterKeyProvider.getById(keyId);
             byte[] iv = new byte[GCM_IV_LENGTH];
@@ -990,21 +1119,24 @@ class AesGcmService {
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
             return cipher.doFinal(encrypted);
         } catch (Exception e) {
-            throw new com.gepe.app.platform.exception.ServiceException(
-                    AuthError.DECRYPTION_FAILED);
+            throw new ServiceException(AuthError.DECRYPTION_FAILED);
         }
     }
 }
 ```
 
-### 11.3 `src/main/java/com/gepe/app/auth/crypto/RsaKeyService.java`
+### 11.3 `src/main/java/com/gepe/app/auth/internal/crypto/RsaKeyService.java`
 
 ```java
-package com.gepe.app.auth.crypto;
+package com.gepe.app.auth.internal.crypto;
 
+import com.gepe.app.auth.internal.dto.SigningKeyData;
+import com.gepe.app.auth.internal.exception.AuthError;
+import com.gepe.app.platform.exception.ServiceException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -1015,33 +1147,31 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-class RsaKeyService {
+public class RsaKeyService {
 
     private static final int RSA_KEY_SIZE = 2048;
 
     private final AesGcmService aesGcmService;
 
-    KeyPair generateKeyPair() {
+    public KeyPair generateKeyPair() {
         try {
             KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
-            gen.initialize(RSA_KEY_SIZE, new java.security.SecureRandom());
+            gen.initialize(RSA_KEY_SIZE, new SecureRandom());
             return gen.generateKeyPair();
         } catch (Exception e) {
-            throw new com.gepe.app.platform.exception.ServiceException(
-                    AuthError.KEY_GENERATION_FAILED);
+            throw new ServiceException(AuthError.KEY_GENERATION_FAILED);
         }
     }
 
-    String publicKeyToBase64(RSAPublicKey publicKey) {
+    public String publicKeyToBase64(RSAPublicKey publicKey) {
         return Base64.getEncoder().encodeToString(publicKey.getEncoded());
     }
 
-    byte[] encryptPrivateKey(RSAPrivateKey privateKey) {
+    public byte[] encryptPrivateKey(RSAPrivateKey privateKey) {
         return aesGcmService.encrypt(privateKey.getEncoded());
     }
 
-    RSAPrivateKey decryptPrivateKey(
-            com.gepe.app.auth.keyrotation.SigningKeyData signingKey) {
+    public RSAPrivateKey decryptPrivateKey(SigningKeyData signingKey) {
         byte[] pkcs8 = aesGcmService.decrypt(
                 signingKey.privateKeyCipher(),
                 signingKey.encKeyId());
@@ -1049,61 +1179,78 @@ class RsaKeyService {
             KeyFactory kf = KeyFactory.getInstance("RSA");
             return (RSAPrivateKey) kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
         } catch (Exception e) {
-            throw new com.gepe.app.platform.exception.ServiceException(
-                    AuthError.DECRYPTION_FAILED);
+            throw new ServiceException(AuthError.DECRYPTION_FAILED);
         }
     }
 
-    RSAPublicKey parsePublicKey(String base64PublicKey) {
+    public RSAPublicKey parsePublicKey(String base64PublicKey) {
         try {
             byte[] keyBytes = Base64.getDecoder().decode(base64PublicKey);
             KeyFactory kf = KeyFactory.getInstance("RSA");
             return (RSAPublicKey) kf.generatePublic(new X509EncodedKeySpec(keyBytes));
         } catch (Exception e) {
-            throw new com.gepe.app.platform.exception.ServiceException(
-                    AuthError.KEY_NOT_FOUND);
+            throw new ServiceException(AuthError.KEY_NOT_FOUND);
         }
     }
+}
+```
 
-    byte[] reEncryptPrivateKey(
-            com.gepe.app.auth.keyrotation.SigningKeyData signingKey,
-            byte[] newCipher) {
-        return newCipher;
+### 11.4 `src/main/java/com/gepe/app/auth/internal/crypto/PasswordHasher.java`
+
+> Membungkus `PasswordEncoder` (AGENTS.md §2). `public` karena dipakai `AuthService` (sub-package berbeda).
+
+```java
+package com.gepe.app.auth.internal.crypto;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+@Component
+@RequiredArgsConstructor
+public class PasswordHasher {
+
+    private final PasswordEncoder passwordEncoder;
+
+    public String hash(String rawPassword) {
+        return passwordEncoder.encode(rawPassword);
+    }
+
+    public boolean matches(String rawPassword, String encoded) {
+        return passwordEncoder.matches(rawPassword, encoded);
     }
 }
 ```
 
 ---
 
-## 12. Signing Key — Boundary-safe DTOs + Service
+## 12. Signing Key — Boundary-safe DTOs
 
-> **Prinsip**: JPA entity `SigningKey` diakses hanya oleh package ini (`keyrotation`).
-> Semua consumer luar (jwt, crypto, rotation jobs) menerima **DTO**, bukan entity.
+> **Prinsip (AGENTS.md §3.6):** DTO **tidak boleh meng-import/meng-annotate entity**. Entity
+> `SigningKey` hanya dikenal oleh `internal/entity` + `internal/repository` + `internal/service`.
+> Konversi entity → DTO dilakukan di `SigningKeyService`, bukan di dalam DTO.
 
-### 12.1 `src/main/java/com/gepe/app/auth/keyrotation/SigningKeyStatus.java`
+### 12.1 `src/main/java/com/gepe/app/auth/internal/dto/SigningKeyStatus.java`
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.dto;
 
-enum SigningKeyStatus {
+public enum SigningKeyStatus {
     ACTIVE,
     PREVIOUS,
     RETIRED
 }
 ```
 
-### 12.2 `src/main/java/com/gepe/app/auth/keyrotation/SigningKeyData.java`
+### 12.2 `src/main/java/com/gepe/app/auth/internal/dto/SigningKeyData.java`
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.dto;
 
-import com.gepe.app.auth.exception.AuthError;
-import com.gepe.app.auth.internal.entity.SigningKey;
-import com.gepe.app.platform.exception.ServiceException;
 import java.time.Instant;
 import java.util.UUID;
 
-record SigningKeyData(
+public record SigningKeyData(
         UUID kid,
         String publicKey,
         byte[] privateKeyCipher,
@@ -1111,17 +1258,71 @@ record SigningKeyData(
         SigningKeyStatus status,
         Instant notBefore,
         Instant notAfter) {
+}
+```
 
-    static SigningKeyData from(SigningKey entity) {
-        if (entity == null) throw new ServiceException(AuthError.KEY_NOT_FOUND);
+---
+
+## 13. Signing Key — Service
+
+### `src/main/java/com/gepe/app/auth/internal/service/SigningKeyService.java`
+
+> Satu-satunya pemanggil `SigningKeyRepository` (AGENTS.md §2.1). Mengubah entity → DTO di boundary.
+> `public` karena dipakai `JwtService` & `DbJwtDecoder` (sub-package berbeda).
+
+```java
+package com.gepe.app.auth.internal.service;
+
+import com.gepe.app.auth.internal.dto.SigningKeyData;
+import com.gepe.app.auth.internal.dto.SigningKeyStatus;
+import com.gepe.app.auth.internal.entity.SigningKey;
+import com.gepe.app.auth.internal.repository.SigningKeyRepository;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class SigningKeyService {
+
+    private final SigningKeyRepository signingKeyRepository;
+
+    public Optional<SigningKeyData> getActive() {
+        return signingKeyRepository
+                .findFirstByStatusOrderByNotBeforeDesc(SigningKey.Status.ACTIVE)
+                .map(this::toData);
+    }
+
+    public List<SigningKeyData> getActiveOrPrevious() {
+        return signingKeyRepository
+                .findByStatusIn(List.of(SigningKey.Status.ACTIVE, SigningKey.Status.PREVIOUS))
+                .stream()
+                .map(this::toData)
+                .toList();
+    }
+
+    public List<SigningKeyData> getActiveOrPreviousNotExpired(Instant now) {
+        return signingKeyRepository
+                .findByStatusInAndNotAfterAfter(
+                        List.of(SigningKey.Status.ACTIVE, SigningKey.Status.PREVIOUS), now)
+                .stream()
+                .map(this::toData)
+                .toList();
+    }
+
+    private SigningKeyData toData(SigningKey e) {
         return new SigningKeyData(
-                entity.getKid(),
-                entity.getPublicKey(),
-                entity.getPrivateKeyCipher(),
-                entity.getEncKeyId(),
-                mapStatus(entity.getStatus()),
-                entity.getNotBefore(),
-                entity.getNotAfter());
+                e.getKid(),
+                e.getPublicKey(),
+                e.getPrivateKeyCipher(),
+                e.getEncKeyId(),
+                mapStatus(e.getStatus()),
+                e.getNotBefore(),
+                e.getNotAfter());
     }
 
     private static SigningKeyStatus mapStatus(SigningKey.Status s) {
@@ -1134,58 +1335,16 @@ record SigningKeyData(
 }
 ```
 
-### 12.3 `src/main/java/com/gepe/app/auth/keyrotation/SigningKeyService.java`
-
-```java
-package com.gepe.app.auth.keyrotation;
-
-import com.gepe.app.auth.internal.entity.SigningKey;
-import java.util.List;
-import java.util.Optional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-@Service
-@RequiredArgsConstructor
-@Transactional(readOnly = true)
-class SigningKeyService {
-
-    private final SigningKeyRepository signingKeyRepository;
-
-    Optional<SigningKeyData> getActive() {
-        return signingKeyRepository
-                .findFirstByStatusOrderByNotBeforeDesc(SigningKey.Status.ACTIVE)
-                .map(SigningKeyData::from);
-    }
-
-    List<SigningKeyData> getActiveOrPrevious() {
-        return signingKeyRepository
-                .findByStatusIn(List.of(SigningKey.Status.ACTIVE, SigningKey.Status.PREVIOUS))
-                .stream()
-                .map(SigningKeyData::from)
-                .toList();
-    }
-
-    List<SigningKeyData> getActiveOrPreviousNotExpired(java.time.Instant now) {
-        return signingKeyRepository
-                .findByStatusInAndNotAfterAfter(
-                        List.of(SigningKey.Status.ACTIVE, SigningKey.Status.PREVIOUS), now)
-                .stream()
-                .map(SigningKeyData::from)
-                .toList();
-    }
-}
-```
-
 ---
 
-## 13. Signing Key — Entity, Repository & Rotation Jobs
+## 14. Signing Key — Entity, Repository
 
-### 13.1 `src/main/java/com/gepe/app/auth/internal/entity/SigningKey.java`
+### 14.1 `src/main/java/com/gepe/app/auth/internal/entity/SigningKey.java`
+
+> `public` karena diakses repository & service di sub-package lain.
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.entity;
 
 import com.gepe.app.platform.support.Uuidv7;
 import jakarta.persistence.Column;
@@ -1204,7 +1363,7 @@ import lombok.Setter;
 @Table(name = "signing_keys", schema = "auth")
 @Getter
 @Setter
-class SigningKey {
+public class SigningKey {
 
     @Id
     private UUID kid;
@@ -1234,11 +1393,11 @@ class SigningKey {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    // no-arg constructor
+    // no-arg constructor untuk JPA
     protected SigningKey() {}
 
-    SigningKey(UUID kid, String publicKey, byte[] privateKeyCipher, String encKeyId,
-               Status status, Instant notBefore, Instant notAfter) {
+    public SigningKey(UUID kid, String publicKey, byte[] privateKeyCipher, String encKeyId,
+                      Status status, Instant notBefore, Instant notAfter) {
         this.kid = kid;
         this.publicKey = publicKey;
         this.privateKeyCipher = privateKeyCipher;
@@ -1254,7 +1413,7 @@ class SigningKey {
         if (createdAt == null) createdAt = Instant.now();
     }
 
-    enum Status {
+    public enum Status {
         ACTIVE,
         PREVIOUS,
         RETIRED
@@ -1262,12 +1421,13 @@ class SigningKey {
 }
 ```
 
-### 13.2 `src/main/java/com/gepe/app/auth/keyrotation/SigningKeyRepository.java`
+### 14.2 `src/main/java/com/gepe/app/auth/internal/repository/SigningKeyRepository.java`
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.repository;
 
 import com.gepe.app.auth.internal.entity.SigningKey;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -1275,31 +1435,41 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-interface SigningKeyRepository extends JpaRepository<SigningKey, UUID> {
+public interface SigningKeyRepository extends JpaRepository<SigningKey, UUID> {
 
     Optional<SigningKey> findFirstByStatusOrderByNotBeforeDesc(SigningKey.Status status);
 
     List<SigningKey> findByStatusIn(List<SigningKey.Status> statuses);
 
     List<SigningKey> findByStatusInAndNotAfterAfter(
-            List<SigningKey.Status> statuses, java.time.Instant now);
+            List<SigningKey.Status> statuses, Instant now);
 
     Optional<SigningKey> findByKidAndStatusIn(UUID kid, List<SigningKey.Status> statuses);
 }
 ```
 
-### 13.3 `src/main/java/com/gepe/app/auth/keyrotation/SigningKeyRotationJob.java`
+---
+
+## 15. Signing Key — Rotation Jobs, Scheduler & Seeder
+
+> **AGENTS.md §2.4:** Quartz `Job` (pekerjaan) **selalu dipisah** dari `*Scheduler` (registrasi
+> `JobDetail`/`Trigger`). Keduanya hidup di `internal/job`.
+
+### 15.1 `src/main/java/com/gepe/app/auth/internal/job/SigningKeyRotationJob.java`
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.job;
 
-import com.gepe.app.auth.crypto.AesGcmService;
-import com.gepe.app.auth.crypto.MasterKeyProvider;
-import com.gepe.app.auth.crypto.RsaKeyService;
+import com.gepe.app.auth.internal.crypto.MasterKeyProvider;
+import com.gepe.app.auth.internal.crypto.RsaKeyService;
+import com.gepe.app.auth.internal.entity.SigningKey;
+import com.gepe.app.auth.internal.repository.SigningKeyRepository;
+import com.gepe.app.platform.support.Uuidv7;
 import java.security.KeyPair;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.DisallowConcurrentExecution;
@@ -1342,7 +1512,7 @@ class SigningKeyRotationJob extends QuartzJobBean {
                              active.getKid(), active.getNotAfter());
                 });
 
-        // Generate new ACTIVE key
+        // Generate new ACTIVE key — kid HARUS v7 via Uuidv7.generate() (AGENTS.md §UUID)
         KeyPair keyPair = rsaKeyService.generateKeyPair();
         RSAPublicKey pub = (RSAPublicKey) keyPair.getPublic();
         RSAPrivateKey priv = (RSAPrivateKey) keyPair.getPrivate();
@@ -1351,7 +1521,7 @@ class SigningKeyRotationJob extends QuartzJobBean {
         byte[] privCipher = rsaKeyService.encryptPrivateKey(priv);
 
         SigningKey newKey = new SigningKey(
-                java.util.UUID.randomUUID(), // kid — ok untuk v4 di sini? TIDAK. Pakai Uuidv7
+                Uuidv7.generate(),
                 pubBase64,
                 privCipher,
                 masterKeyProvider.getCurrentKeyId(),
@@ -1360,19 +1530,19 @@ class SigningKeyRotationJob extends QuartzJobBean {
                 null
         );
 
-        // Override kid with v7
-        newKey.setKid(com.gepe.app.platform.support.Uuidv7.generate());
-
         signingKeyRepository.save(newKey);
         log.info("Generated new ACTIVE signing key: kid={}", newKey.getKid());
     }
 }
 ```
 
-### 13.4 `src/main/java/com/gepe/app/auth/keyrotation/SigningKeyRotationScheduler.java`
+> **JANGAN** pakai `UUID.randomUUID()` (v4) untuk `kid` lalu di-override — langsung pakai
+> `Uuidv7.generate()` satu kali (ini perbaikan dari draft awal).
+
+### 15.2 `src/main/java/com/gepe/app/auth/internal/job/SigningKeyRotationScheduler.java`
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.job;
 
 import org.quartz.CronScheduleBuilder;
 import org.quartz.JobBuilder;
@@ -1383,7 +1553,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 class SigningKeyRotationScheduler {
 
     static final String JOB_KEY = "signingKeyRotation";
@@ -1412,14 +1582,15 @@ class SigningKeyRotationScheduler {
 }
 ```
 
-### 13.5 `src/main/java/com/gepe/app/auth/keyrotation/MasterKeyRotationJob.java`
+### 15.3 `src/main/java/com/gepe/app/auth/internal/job/MasterKeyRotationJob.java`
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.job;
 
-import com.gepe.app.auth.crypto.AesGcmService;
-import com.gepe.app.auth.crypto.MasterKeyProvider;
-import com.gepe.app.auth.crypto.RsaKeyService;
+import com.gepe.app.auth.internal.crypto.AesGcmService;
+import com.gepe.app.auth.internal.crypto.MasterKeyProvider;
+import com.gepe.app.auth.internal.entity.SigningKey;
+import com.gepe.app.auth.internal.repository.SigningKeyRepository;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -1434,7 +1605,6 @@ import org.springframework.scheduling.quartz.QuartzJobBean;
 class MasterKeyRotationJob extends QuartzJobBean {
 
     private final SigningKeyRepository signingKeyRepository;
-    private final RsaKeyService rsaKeyService;
     private final MasterKeyProvider masterKeyProvider;
     private final AesGcmService aesGcmService;
 
@@ -1478,10 +1648,10 @@ class MasterKeyRotationJob extends QuartzJobBean {
 }
 ```
 
-### 13.6 `src/main/java/com/gepe/app/auth/keyrotation/MasterKeyRotationScheduler.java`
+### 15.4 `src/main/java/com/gepe/app/auth/internal/job/MasterKeyRotationScheduler.java`
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.job;
 
 import org.quartz.CronScheduleBuilder;
 import org.quartz.JobBuilder;
@@ -1492,7 +1662,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 class MasterKeyRotationScheduler {
 
     static final String JOB_KEY = "masterKeyRotation";
@@ -1523,19 +1693,19 @@ class MasterKeyRotationScheduler {
 
 ---
 
-## 14. Deny List (Redis)
+## 16. Deny List (Redis)
 
-### 14.1 `src/main/java/com/gepe/app/auth/deny/RedisConfig.java`
+### 16.1 `src/main/java/com/gepe/app/auth/internal/deny/RedisConfig.java`
 
 ```java
-package com.gepe.app.auth.deny;
+package com.gepe.app.auth.internal.deny;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 class RedisConfig {
 
     @Bean
@@ -1545,10 +1715,12 @@ class RedisConfig {
 }
 ```
 
-### 14.2 `src/main/java/com/gepe/app/auth/deny/AccessTokenDenyList.java`
+### 16.2 `src/main/java/com/gepe/app/auth/internal/deny/AccessTokenDenyList.java`
+
+> `public` karena dipakai `AuthService` (sub-package berbeda).
 
 ```java
-package com.gepe.app.auth.deny;
+package com.gepe.app.auth.internal.deny;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -1560,20 +1732,20 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-class AccessTokenDenyList {
+public class AccessTokenDenyList {
 
     private static final String PREFIX = "revoked_at:";
 
     private final StringRedisTemplate redis;
 
-    void revoke(UUID jti, Duration ttl) {
+    public void revoke(UUID jti, Duration ttl) {
         if (ttl.isNegative() || ttl.isZero()) return;
         String key = PREFIX + jti;
         redis.opsForValue().set(key, String.valueOf(System.currentTimeMillis()), ttl);
         log.debug("Access token denied: jti={}, ttl={}", jti, ttl);
     }
 
-    boolean isRevoked(UUID jti) {
+    public boolean isRevoked(UUID jti) {
         return Boolean.TRUE.equals(redis.hasKey(PREFIX + jti));
     }
 }
@@ -1581,9 +1753,9 @@ class AccessTokenDenyList {
 
 ---
 
-## 15. Refresh Token
+## 17. Refresh Token
 
-### 15.1 `src/main/java/com/gepe/app/auth/internal/entity/RefreshToken.java`
+### 17.1 `src/main/java/com/gepe/app/auth/internal/entity/RefreshToken.java`
 
 ```java
 package com.gepe.app.auth.internal.entity;
@@ -1603,7 +1775,7 @@ import lombok.Setter;
 @Table(name = "refresh_tokens", schema = "auth")
 @Getter
 @Setter
-class RefreshToken {
+public class RefreshToken {
 
     @Id
     private UUID id;
@@ -1638,32 +1810,32 @@ class RefreshToken {
         if (issuedAt == null) issuedAt = Instant.now();
     }
 
-    boolean isExpired() {
+    public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
     }
 
-    boolean isRevoked() {
+    public boolean isRevoked() {
         return revokedAt != null;
     }
 
-    boolean isActive() {
+    public boolean isActive() {
         return !isExpired() && !isRevoked();
     }
 
-    void revoke() {
+    public void revoke() {
         revokedAt = Instant.now();
     }
 
-    void rotate() {
+    public void rotate() {
         rotatedAt = Instant.now();
     }
 }
 ```
 
-### 15.2 `src/main/java/com/gepe/app/auth/refresh/RefreshTokenRepository.java`
+### 17.2 `src/main/java/com/gepe/app/auth/internal/repository/RefreshTokenRepository.java`
 
 ```java
-package com.gepe.app.auth.refresh;
+package com.gepe.app.auth.internal.repository;
 
 import com.gepe.app.auth.internal.entity.RefreshToken;
 import java.util.Optional;
@@ -1672,7 +1844,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
@@ -1680,11 +1852,36 @@ interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 }
 ```
 
-### 15.3 `src/main/java/com/gepe/app/auth/refresh/RefreshTokenService.java`
+### 17.3 `src/main/java/com/gepe/app/auth/internal/dto/TokenWithId.java` & `RotatedToken.java`
 
 ```java
-package com.gepe.app.auth.refresh;
+package com.gepe.app.auth.internal.dto;
 
+import java.util.UUID;
+
+public record TokenWithId(UUID id, String raw) {}
+```
+
+```java
+package com.gepe.app.auth.internal.dto;
+
+import java.util.UUID;
+
+public record RotatedToken(UUID id, String raw, UUID userId) {}
+```
+
+### 17.4 `src/main/java/com/gepe/app/auth/internal/service/RefreshTokenService.java`
+
+> `public` karena dipakai `AuthService` (sub-package berbeda).
+
+```java
+package com.gepe.app.auth.internal.service;
+
+import com.gepe.app.auth.internal.dto.RotatedToken;
+import com.gepe.app.auth.internal.dto.TokenWithId;
+import com.gepe.app.auth.internal.entity.RefreshToken;
+import com.gepe.app.auth.internal.exception.AuthError;
+import com.gepe.app.auth.internal.repository.RefreshTokenRepository;
 import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.platform.support.Uuidv7;
 import java.nio.charset.StandardCharsets;
@@ -1694,7 +1891,6 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -1705,14 +1901,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
-class RefreshTokenService {
+public class RefreshTokenService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int TOKEN_BYTES = 64;
 
     private final RefreshTokenRepository refreshTokenRepository;
 
-    TokenWithId issue(UUID userId, Duration ttl, String deviceInfo) {
+    public TokenWithId issue(UUID userId, Duration ttl, String deviceInfo) {
         String raw = generateRawToken();
         String hash = sha256(raw);
 
@@ -1728,12 +1924,12 @@ class RefreshTokenService {
         return new TokenWithId(entity.getId(), raw);
     }
 
-    TokenWithId rotate(String rawToken) throws ServiceException {
+    public RotatedToken rotate(String rawToken) {
         String hash = sha256(rawToken);
         RefreshToken current = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new ServiceException(AuthError.REFRESH_TOKEN_REVOKED));
 
-        // Deteksi reuse: parent_token_id yang sudah punya child = ini token yang sudah di-rotate
+        // Deteksi reuse: token yang sudah di-revoke = sudah pernah di-rotate → seluruh sesi dicabut
         if (current.isRevoked()) {
             log.warn("Refresh token reuse detected: token_id={}, user_id={}",
                      current.getId(), current.getUserId());
@@ -1768,10 +1964,10 @@ class RefreshTokenService {
         rotated.setIssuedAt(Instant.now());
         refreshTokenRepository.save(rotated);
 
-        return new TokenWithId(rotated.getId(), newRaw);
+        return new RotatedToken(rotated.getId(), newRaw, rotated.getUserId());
     }
 
-    void revokeById(UUID tokenId) {
+    public void revokeById(UUID tokenId) {
         refreshTokenRepository.findById(tokenId).ifPresent(token -> {
             token.revoke();
             refreshTokenRepository.save(token);
@@ -1784,7 +1980,7 @@ class RefreshTokenService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    static String sha256(String input) {
+    public static String sha256(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
@@ -1793,16 +1989,17 @@ class RefreshTokenService {
             throw new RuntimeException("SHA-256 not available", e);
         }
     }
-
-    record TokenWithId(UUID id, String raw) {}
 }
 ```
 
+> **Perbaikan dari draft awal:** `rotate()` mengembalikan `RotatedToken(id, raw, userId)` sehingga
+> `AuthService.refresh()` tidak lagi salah memakai refresh-token ID sebagai userId.
+
 ---
 
-## 16. User Credentials
+## 18. User Credentials
 
-### 16.1 `src/main/java/com/gepe/app/auth/internal/entity/UserCredential.java`
+### 18.1 `src/main/java/com/gepe/app/auth/internal/entity/UserCredential.java`
 
 ```java
 package com.gepe.app.auth.internal.entity;
@@ -1822,7 +2019,7 @@ import lombok.Setter;
 @Table(name = "user_credentials", schema = "auth")
 @Getter
 @Setter
-class UserCredential {
+public class UserCredential {
 
     @Id
     private UUID id;
@@ -1851,10 +2048,10 @@ class UserCredential {
 }
 ```
 
-### 16.2 `src/main/java/com/gepe/app/auth/credential/UserCredentialRepository.java`
+### 18.2 `src/main/java/com/gepe/app/auth/internal/repository/UserCredentialRepository.java`
 
 ```java
-package com.gepe.app.auth.credential;
+package com.gepe.app.auth.internal.repository;
 
 import com.gepe.app.auth.internal.entity.UserCredential;
 import java.util.Optional;
@@ -1863,7 +2060,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-interface UserCredentialRepository extends JpaRepository<UserCredential, UUID> {
+public interface UserCredentialRepository extends JpaRepository<UserCredential, UUID> {
 
     Optional<UserCredential> findByEmail(String email);
 
@@ -1875,311 +2072,168 @@ interface UserCredentialRepository extends JpaRepository<UserCredential, UUID> {
 
 ---
 
-## 17. Auth Service
+## 19. DTOs (delivery/http ↔ Service)
 
-### `src/main/java/com/gepe/app/auth/web/AuthService.java`
+> Records ini dipakai service ↔ controller di dalam modul (AGENTS.md §2.6). `public` karena
+> controller berada di `internal/delivery/http` (sub-package berbeda dengan `internal/dto`).
 
-```java
-package com.gepe.app.auth.web;
-
-import com.gepe.app.auth.exception.AuthError;
-import com.gepe.app.auth.internal.entity.UserCredential;
-import com.gepe.app.auth.credential.UserCredentialRepository;
-import com.gepe.app.auth.deny.AccessTokenDenyList;
-import com.gepe.app.auth.jwt.JwtClaims;
-import com.gepe.app.auth.jwt.JwtTokenService;
-import com.gepe.app.auth.refresh.RefreshTokenService;
-import com.gepe.app.platform.exception.ServiceException;
-import com.nimbusds.jwt.SignedJWT;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-@Service
-@RequiredArgsConstructor
-@Transactional
-class AuthService {
-
-    private final UserCredentialRepository credentialRepository;
-    private final JwtTokenService jwtTokenService;
-    private final RefreshTokenService refreshTokenService;
-    private final AccessTokenDenyList denyList;
-    private final JwtDecoder jwtDecoder;
-    private final PasswordEncoder passwordEncoder;
-
-    @Transactional
-    TokenPair login(String email, String password) {
-        UserCredential cred = credentialRepository.findByEmail(email)
-                .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
-
-        if (!passwordEncoder.matches(password, cred.getPasswordHash())) {
-            throw new ServiceException(AuthError.INVALID_CREDENTIALS);
-        }
-
-        List<String> roles = List.of("ROLE_USER");
-
-        SignedJWT accessTokenJwt = jwtTokenService.issueAccessToken(
-                cred.getUserId(), cred.getEmail(), roles);
-        String accessToken = accessTokenJwt.serialize();
-
-        RefreshTokenService.TokenWithId rt =
-                refreshTokenService.issue(cred.getUserId(), Duration.ofDays(30), null);
-
-        return new TokenPair(accessToken, rt.raw(), rt.id());
-    }
-
-    @Transactional
-    TokenPair refresh(String rawRefreshToken) {
-        RefreshTokenService.TokenWithId rt = refreshTokenService.rotate(rawRefreshToken);
-
-        // Load user from credentials
-        UserCredential cred = credentialRepository.findByUserId(
-                rt.id()) // well, we need userId — let me fix this below
-                .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
-
-        List<String> roles = List.of("ROLE_USER");
-
-        SignedJWT accessToken = jwtTokenService.issueAccessToken(
-                cred.getUserId(), cred.getEmail(), roles);
-
-        return new TokenPair(accessToken.serialize(), rt.raw(), rt.id());
-    }
-
-    @Transactional
-    void logout(String bearerToken) {
-        try {
-            Jwt jwt = jwtDecoder.decode(bearerToken);
-            UUID jti = JwtClaims.getJti(jwt);
-            Duration ttl = JwtClaims.ttlUntilExpiry(jwt);
-            denyList.revoke(jti, ttl);
-        } catch (Exception e) {
-            // token sudah invalid — tidak apa-apa
-        }
-    }
-
-    record TokenPair(String accessToken, String refreshToken, UUID refreshTokenId) {}
-}
-```
-
-> **CATATAN:** Method `refresh()` di atas memiliki bug — `rt.id()` adalah refresh token ID, bukan userId. Perbaikan: `RefreshTokenService.rotate()` seharusnya mengembalikan `(userId, newTokenId, newRaw)`. Lihat implementasi final di bawah.
-
-### Versi final `AuthService.java` (diperbaiki)
+### 19.1 `src/main/java/com/gepe/app/auth/internal/dto/LoginRequest.java`
 
 ```java
-package com.gepe.app.auth.web;
-
-import com.gepe.app.auth.exception.AuthError;
-import com.gepe.app.auth.internal.entity.UserCredential;
-import com.gepe.app.auth.credential.UserCredentialRepository;
-import com.gepe.app.auth.deny.AccessTokenDenyList;
-import com.gepe.app.auth.jwt.JwtClaims;
-import com.gepe.app.auth.jwt.JwtTokenService;
-import com.gepe.app.auth.refresh.RefreshTokenService;
-import com.gepe.app.platform.exception.ServiceException;
-import com.nimbusds.jwt.SignedJWT;
-import java.time.Duration;
-import java.util.List;
-import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-@Service
-@RequiredArgsConstructor
-@Transactional
-class AuthService {
-
-    private final UserCredentialRepository credentialRepository;
-    private final JwtTokenService jwtTokenService;
-    private final RefreshTokenService refreshTokenService;
-    private final AccessTokenDenyList denyList;
-    private final JwtDecoder jwtDecoder;
-    private final PasswordEncoder passwordEncoder;
-
-    TokenPair login(String email, String password) {
-        UserCredential cred = credentialRepository.findByEmail(email)
-                .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
-
-        if (!passwordEncoder.matches(password, cred.getPasswordHash())) {
-            throw new ServiceException(AuthError.INVALID_CREDENTIALS);
-        }
-
-        List<String> roles = List.of("ROLE_USER");
-
-        SignedJWT accessTokenJwt = jwtTokenService.issueAccessToken(
-                cred.getUserId(), cred.getEmail(), roles);
-        String accessToken = accessTokenJwt.serialize();
-
-        RefreshTokenService.TokenWithId rt =
-                refreshTokenService.issue(cred.getUserId(), Duration.ofDays(30), null);
-
-        return new TokenPair(accessToken, rt.raw(), rt.id(), cred.getUserId());
-    }
-
-    @Transactional
-    TokenPair refresh(String rawRefreshToken) {
-        RefreshTokenService.RotatedToken rotated = refreshTokenService.rotate(rawRefreshToken);
-
-        UserCredential cred = credentialRepository.findByUserId(rotated.userId())
-                .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
-
-        List<String> roles = List.of("ROLE_USER");
-
-        SignedJWT accessToken = jwtTokenService.issueAccessToken(
-                cred.getUserId(), cred.getEmail(), roles);
-
-        return new TokenPair(accessToken.serialize(), rotated.raw(), rotated.id(),
-                             cred.getUserId());
-    }
-
-    @Transactional
-    void logout(String bearerToken) {
-        try {
-            Jwt jwt = jwtDecoder.decode(bearerToken);
-            UUID jti = JwtClaims.getJti(jwt);
-            Duration ttl = JwtClaims.ttlUntilExpiry(jwt);
-            denyList.revoke(jti, ttl);
-        } catch (Exception e) {
-            // Token already invalid — safe to ignore
-        }
-    }
-
-    record TokenPair(String accessToken, String refreshToken, UUID refreshTokenId, UUID userId) {}
-}
-```
-
----
-
-## 18. RefreshTokenService (final — dengan RotatedToken)
-
-### Perbaiki `RefreshTokenService.rotate()` return type
-
-Ganti method `rotate` di `RefreshTokenService.java` menjadi:
-
-```java
-RotatedToken rotate(String rawToken) throws ServiceException {
-    String hash = sha256(rawToken);
-    RefreshToken current = refreshTokenRepository.findByTokenHash(hash)
-            .orElseThrow(() -> new ServiceException(AuthError.REFRESH_TOKEN_REVOKED));
-
-    if (current.isRevoked()) {
-        log.warn("Refresh token reuse detected: token_id={}, user_id={}",
-                 current.getId(), current.getUserId());
-        throw new ServiceException(AuthError.REFRESH_TOKEN_REVOKED);
-    }
-
-    if (current.isExpired()) {
-        current.revoke();
-        refreshTokenRepository.save(current);
-        throw new ServiceException(AuthError.REFRESH_TOKEN_EXPIRED);
-    }
-
-    current.revoke();
-    refreshTokenRepository.save(current);
-
-    String newRaw = generateRawToken();
-    String newHash = sha256(newRaw);
-    Duration remainingTtl = Duration.between(Instant.now(), current.getExpiresAt());
-    if (remainingTtl.isNegative()) {
-        remainingTtl = Duration.ofMinutes(5);
-    }
-
-    RefreshToken rotated = new RefreshToken();
-    rotated.setId(Uuidv7.generate());
-    rotated.setUserId(current.getUserId());
-    rotated.setTokenHash(newHash);
-    rotated.setDeviceInfo(current.getDeviceInfo());
-    rotated.setParentTokenId(current.getId());
-    rotated.setExpiresAt(Instant.now().plus(remainingTtl));
-    rotated.setIssuedAt(Instant.now());
-    refreshTokenRepository.save(rotated);
-
-    return new RotatedToken(rotated.getId(), newRaw, rotated.getUserId());
-}
-
-record RotatedToken(UUID id, String raw, UUID userId) {}
-```
-
----
-
-## 19. DTOs
-
-### `src/main/java/com/gepe/app/auth/web/api/LoginRequest.java`
-
-```java
-package com.gepe.app.auth.web.api;
+package com.gepe.app.auth.internal.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
-record LoginRequest(
+public record LoginRequest(
         @NotBlank @Email String email,
         @NotBlank String password) {
 }
 ```
 
-### `src/main/java/com/gepe/app/auth/web/api/RefreshRequest.java`
+### 19.2 `src/main/java/com/gepe/app/auth/internal/dto/RefreshRequest.java`
 
 ```java
-package com.gepe.app.auth.web.api;
+package com.gepe.app.auth.internal.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
-record RefreshRequest(@NotBlank String refreshToken) {
+public record RefreshRequest(@NotBlank String refreshToken) {
 }
 ```
 
-### `src/main/java/com/gepe/app/auth/web/api/TokenResponse.java`
+### 19.3 `src/main/java/com/gepe/app/auth/internal/dto/TokenResponse.java`
 
 ```java
-package com.gepe.app.auth.web.api;
+package com.gepe.app.auth.internal.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.UUID;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-record TokenResponse(String accessToken, String refreshToken, UUID refreshTokenId, UUID userId) {
+public record TokenResponse(String accessToken, String refreshToken, UUID refreshTokenId, UUID userId) {
 }
 ```
 
 ---
 
-## 20. Controllers
+## 20. Auth Service
 
-### 20.1 `src/main/java/com/gepe/app/auth/web/api/AuthController.java` (API — Bearer)
+### `src/main/java/com/gepe/app/auth/internal/service/AuthService.java`
+
+> **Use-case orchestration** (AGENTS.md §2): satu-satunya tempat publish event, entity → DTO di boundary.
+> `public` karena dipakai controller di `internal/delivery/http`.
 
 ```java
-package com.gepe.app.auth.web.api;
+package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.exception.AuthError;
-import com.gepe.app.auth.deny.AccessTokenDenyList;
-import com.gepe.app.auth.jwt.JwtClaims;
-import com.gepe.app.auth.web.AuthService;
-import com.gepe.app.auth.web.AuthService.TokenPair;
+import com.gepe.app.auth.api.UserAuthenticated;
+import com.gepe.app.auth.internal.crypto.PasswordHasher;
+import com.gepe.app.auth.internal.deny.AccessTokenDenyList;
+import com.gepe.app.auth.internal.dto.RotatedToken;
+import com.gepe.app.auth.internal.dto.TokenResponse;
+import com.gepe.app.auth.internal.dto.TokenWithId;
+import com.gepe.app.auth.internal.entity.UserCredential;
+import com.gepe.app.auth.internal.exception.AuthError;
+import com.gepe.app.auth.internal.jwt.JwtClaims;
+import com.gepe.app.auth.internal.jwt.JwtService;
+import com.gepe.app.auth.internal.repository.UserCredentialRepository;
+import com.gepe.app.platform.exception.ServiceException;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class AuthService {
+
+    private final UserCredentialRepository credentialRepository;
+    private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
+    private final AccessTokenDenyList denyList;
+    private final JwtDecoder jwtDecoder;
+    private final PasswordHasher passwordHasher;
+    private final ApplicationEventPublisher events;
+
+    public TokenResponse login(String email, String password) {
+        UserCredential cred = credentialRepository.findByEmail(email)
+                .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
+
+        if (!passwordHasher.matches(password, cred.getPasswordHash())) {
+            throw new ServiceException(AuthError.INVALID_CREDENTIALS);
+        }
+
+        List<String> roles = List.of("ROLE_USER");
+
+        String accessToken = jwtService.issueAccessToken(
+                cred.getUserId(), cred.getEmail(), roles).serialize();
+
+        TokenWithId rt = refreshTokenService.issue(cred.getUserId(), Duration.ofDays(30), null);
+
+        // Side-effect untuk modul lain — dipublish di sini (transaksi login sudah dimiliki service)
+        events.publishEvent(new UserAuthenticated(cred.getUserId(), cred.getEmail()));
+
+        return new TokenResponse(accessToken, rt.raw(), rt.id(), cred.getUserId());
+    }
+
+    public TokenResponse refresh(String rawRefreshToken) {
+        RotatedToken rotated = refreshTokenService.rotate(rawRefreshToken);
+
+        UserCredential cred = credentialRepository.findByUserId(rotated.userId())
+                .orElseThrow(() -> new ServiceException(AuthError.INVALID_CREDENTIALS));
+
+        String accessToken = jwtService.issueAccessToken(
+                cred.getUserId(), cred.getEmail(), List.of("ROLE_USER")).serialize();
+
+        return new TokenResponse(accessToken, rotated.raw(), rotated.id(), cred.getUserId());
+    }
+
+    public void logout(String bearerToken) {
+        try {
+            Jwt jwt = jwtDecoder.decode(bearerToken);
+            UUID jti = JwtClaims.getJti(jwt);
+            denyList.revoke(jti, JwtClaims.ttlUntilExpiry(jwt));
+        } catch (Exception e) {
+            // Token sudah invalid — aman diabaikan
+        }
+    }
+}
+```
+
+> **Catatan:** JWT issued via Bearer & cookie sama-sama lewat `JwtService` — satu mekanisme token.
+
+---
+
+## 21. Controllers (`internal/delivery/http/` — BUKAN di `api/`)
+
+> **AGENTS.md §2:** controller REST berada di **`internal/delivery/http`** (package
+> `com.gepe.app.auth.internal.delivery.http`), `package-private`, dan hanya bergantung pada
+> `internal/service/` + `internal/dto/`. `api/` adalah untuk modul *lain* memanggil, bukan untuk HTTP entry point.
+
+### 21.1 `src/main/java/com/gepe/app/auth/internal/delivery/http/AuthController.java` (API — Bearer)
+
+```java
+package com.gepe.app.auth.internal.delivery.http;
+
+import com.gepe.app.auth.internal.dto.LoginRequest;
+import com.gepe.app.auth.internal.dto.RefreshRequest;
+import com.gepe.app.auth.internal.dto.TokenResponse;
+import com.gepe.app.auth.internal.exception.AuthError;
+import com.gepe.app.auth.internal.service.AuthService;
 import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.platform.web.response.ApiResponse;
 import jakarta.validation.Valid;
-import java.time.Duration;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -2196,30 +2250,23 @@ class AuthController {
 
     @PostMapping("/login")
     ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequest request) {
-        TokenPair tokens = authService.login(request.email(), request.password());
-        TokenResponse body = new TokenResponse(
-                tokens.accessToken(), tokens.refreshToken(),
-                tokens.refreshTokenId(), tokens.userId());
+        TokenResponse tokens = authService.login(request.email(), request.password());
         return ResponseEntity.ok(new ApiResponse<>(
-                messageHelper.get("auth.login_success"), body));
+                messageHelper.get("auth.login_success"), tokens));
     }
 
     @PostMapping("/refresh")
     ResponseEntity<ApiResponse<TokenResponse>> refresh(
             @Valid @RequestBody RefreshRequest request) {
-        TokenPair tokens = authService.refresh(request.refreshToken());
-        TokenResponse body = new TokenResponse(
-                tokens.accessToken(), tokens.refreshToken(),
-                tokens.refreshTokenId(), tokens.userId());
+        TokenResponse tokens = authService.refresh(request.refreshToken());
         return ResponseEntity.ok(new ApiResponse<>(
-                messageHelper.get("auth.refresh_success"), body));
+                messageHelper.get("auth.refresh_success"), tokens));
     }
 
     @PostMapping("/logout")
     ResponseEntity<ApiResponse<Void>> logout(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
-        String token = extractBearerToken(authHeader);
-        authService.logout(token);
+        authService.logout(extractBearerToken(authHeader));
         return ResponseEntity.ok(new ApiResponse<>(
                 messageHelper.get("auth.logout_success"), null));
     }
@@ -2233,29 +2280,26 @@ class AuthController {
 }
 ```
 
-### 20.2 `src/main/java/com/gepe/app/auth/web/web/AuthWebController.java` (WebApp — Cookie)
+### 21.2 `src/main/java/com/gepe/app/auth/internal/delivery/http/AuthWebController.java` (WebApp — Cookie)
 
 ```java
-package com.gepe.app.auth.web.web;
+package com.gepe.app.auth.internal.delivery.http;
 
-import com.gepe.app.auth.exception.AuthError;
-import com.gepe.app.auth.web.AuthService;
-import com.gepe.app.auth.web.AuthService.TokenPair;
-import com.gepe.app.auth.web.api.LoginRequest;
-import com.gepe.app.auth.web.api.RefreshRequest;
-import com.gepe.app.auth.web.api.TokenResponse;
+import com.gepe.app.auth.internal.dto.LoginRequest;
+import com.gepe.app.auth.internal.dto.RefreshRequest;
+import com.gepe.app.auth.internal.dto.TokenResponse;
+import com.gepe.app.auth.internal.service.AuthService;
 import com.gepe.app.platform.config.i18n.MessageHelper;
-import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.platform.web.response.ApiResponse;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -2284,18 +2328,17 @@ class AuthWebController {
     private boolean secure;
 
     @Value("${app.security.access-token-ttl}")
-    private Duration accessTokenTtl;
+    private java.time.Duration accessTokenTtl;
 
     @PostMapping("/login")
     ResponseEntity<ApiResponse<TokenResponse>> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response) {
-        TokenPair tokens = authService.login(request.email(), request.password());
+        TokenResponse tokens = authService.login(request.email(), request.password());
         setAccessTokenCookie(response, tokens.accessToken());
 
         TokenResponse body = new TokenResponse(
-                null, tokens.refreshToken(),
-                tokens.refreshTokenId(), tokens.userId());
+                null, tokens.refreshToken(), tokens.refreshTokenId(), tokens.userId());
         return ResponseEntity.ok(new ApiResponse<>(
                 messageHelper.get("auth.login_success"), body));
     }
@@ -2304,12 +2347,11 @@ class AuthWebController {
     ResponseEntity<ApiResponse<TokenResponse>> refresh(
             @Valid @RequestBody RefreshRequest request,
             HttpServletResponse response) {
-        TokenPair tokens = authService.refresh(request.refreshToken());
+        TokenResponse tokens = authService.refresh(request.refreshToken());
         setAccessTokenCookie(response, tokens.accessToken());
 
         TokenResponse body = new TokenResponse(
-                null, tokens.refreshToken(),
-                tokens.refreshTokenId(), tokens.userId());
+                null, tokens.refreshToken(), tokens.refreshTokenId(), tokens.userId());
         return ResponseEntity.ok(new ApiResponse<>(
                 messageHelper.get("auth.refresh_success"), body));
     }
@@ -2334,8 +2376,7 @@ class AuthWebController {
                 .sameSite(sameSite)
                 .maxAge(maxAgeSeconds)
                 .build();
-        response.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE,
-                           cookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     private Optional<String> extractTokenFromCookie(HttpServletRequest request) {
@@ -2355,22 +2396,8 @@ class AuthWebController {
                 .sameSite(sameSite)
                 .maxAge(0)
                 .build();
-        response.addHeader(org.springframework.http.HttpHeaders.SET_COOKIE,
-                           cookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
-}
-```
-
----
-
-## 21. Password Encoder Bean
-
-### Tambahkan di `SecurityConfig.java`:
-
-```java
-@Bean
-PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
 }
 ```
 
@@ -2440,7 +2467,7 @@ CREATE INDEX idx_refresh_tokens_expires
 CREATE TABLE auth.user_credentials (
     id              UUID            NOT NULL,
     user_id         UUID            NOT NULL,
-    email           VARCHAR(320)     NOT NULL,
+    email           VARCHAR(320)    NOT NULL,
     password_hash   VARCHAR(255)    NOT NULL,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
@@ -2454,20 +2481,27 @@ CREATE INDEX idx_user_credentials_email
     ON auth.user_credentials (email);
 ```
 
+> Migrasi auth hidup di **subdirektori** `db/migration/auth` dan di-list di `spring.flyway.locations`
+> (AGENTS.md §Flyway). Tidak ada FK lintas schema — `user_id` adalah plain column (AGENTS.md §3.3).
+
 ---
 
 ## 23. Initial Key Seeding
 
 Karena RSA key harus ada di DB sebelum JWT bisa di-issue, gunakan `ApplicationRunner` untuk seeding key pertama kali:
 
-### `src/main/java/com/gepe/app/auth/keyrotation/SigningKeySeeder.java`
+### `src/main/java/com/gepe/app/auth/internal/job/SigningKeySeeder.java`
+
+> Ditaruh di `internal/job` karena termasuk siklus hidup signing key (bootstrap + rotasi).
+> `package-private` — cukup jadi Spring bean (`ApplicationRunner`), tidak dipakai modul lain.
 
 ```java
-package com.gepe.app.auth.keyrotation;
+package com.gepe.app.auth.internal.job;
 
-import com.gepe.app.auth.crypto.MasterKeyProvider;
-import com.gepe.app.auth.crypto.RsaKeyService;
+import com.gepe.app.auth.internal.crypto.MasterKeyProvider;
+import com.gepe.app.auth.internal.crypto.RsaKeyService;
 import com.gepe.app.auth.internal.entity.SigningKey;
+import com.gepe.app.auth.internal.repository.SigningKeyRepository;
 import com.gepe.app.platform.support.Uuidv7;
 import java.security.KeyPair;
 import java.security.interfaces.RSAPrivateKey;
@@ -2531,9 +2565,12 @@ Setelah semua code di atas ditambahkan, jalankan:
 ```
 
 Test harus **hijau** karena:
-- Semua kelas internal `package-private` (tidak bisa di-import module lain)
-- Hanya `auth.CurrentUser` yang `public` — itulah satu-satunya kontrak antar module
-- Tidak ada import dari module lain selain ke `platform` (shared module)
+- Hanya `auth/api/*` yang `public` sebagai kontrak antar modul.
+- Semua entity/repository/service/jwt/crypto/job/dto/exception/config hidup di `auth/internal/**`.
+- Tidak ada import dari modul lain selain ke `platform` (shared module).
+- Controller (`AuthController`, `AuthWebController`) di `internal/delivery/http` hanya bergantung pada `internal/service/` + `internal/dto/`.
+
+> Jika merah → **jangan** bypass test. Perbaiki arsitekturnya (AGENTS.md §6).
 
 ---
 
@@ -2571,31 +2608,30 @@ export SPRING_DATA_REDIS_PORT=6379
 ## 27. Checklist Eksekusi (Urutan yang Disarankan)
 
 1. [ ] Tambah dependencies di `pom.xml`
-2. [ ] Tambah `flyway.locations` dan `app.security.*` di `application.yaml`
+2. [ ] Tambah `flyway.locations` (bukan `callback-locations`) dan `app.security.*` di `application.yaml`
 3. [ ] Tambah `classpath:i18n/auth/messages` di `I18nConfig.java`
 4. [ ] Buat file i18n: `messages.properties` dan `messages_id.properties`
 5. [ ] Buat migration SQL: `V1__signing_keys.sql`, `V2__refresh_tokens.sql`, `V3__user_credentials.sql`
 6. [ ] Buat package `com.gepe.app.auth` dengan `package-info.java`
-7. [ ] Buat `exception/AuthError.java`
-8. [ ] Buat `CurrentUser.java`
-9. [ ] Buat `jwt/*` (JwtProperties, JwtConfig, JwtClaims, JwtTokenService, JwtAuthenticationToken, DbJwtDecoder)
-10. [ ] Buat `crypto/*` (MasterKeyProvider, AesGcmService, RsaKeyService) — RsaKeyService terima SigningKeyData
-11. [ ] Buat `keyrotation/*` (SigningKeyStatus, SigningKeyData, SigningKeyService, SigningKeyRepository, SigningKeyRotationJob/Scheduler, MasterKeyRotationJob/Scheduler, SigningKeySeeder)
-12. [ ] Buat `internal/entity/*` (SigningKey, RefreshToken, UserCredential)
-13. [ ] Buat `deny/*` (RedisConfig, AccessTokenDenyList)
-14. [ ] Buat `refresh/*` (RefreshTokenRepository, RefreshTokenService)
-15. [ ] Buat `credential/*` (UserCredentialRepository)
-16. [ ] Buat `web/AuthService.java`
-17. [ ] Buat `web/api/*` (AuthController, LoginRequest, RefreshRequest, TokenResponse)
-18. [ ] Buat `web/web/AuthWebController.java`
-19. [ ] Buat `cookie/CookieAuthenticationFilter.java`
-20. [ ] Buat `config/SecurityConfig.java` (termasuk `passwordEncoder` bean)
-21. [ ] Set env `MASTER_KEY_CURRENT`
-22. [ ] Start Redis + Postgres
-23. [ ] `./mvnw compile`
-24. [ ] `./mvnw test -Dtest="ModularityTests"` — **harus hijau**
-25. [ ] `./mvnw test`
-26. [ ] `./mvnw spring-boot:run`
+7. [ ] Buat `api/` → `AuthApi.java`, `CurrentUser.java`, `UserAuthenticated.java`
+8. [ ] Buat `internal/exception/AuthError.java`
+9. [ ] Buat `internal/jwt/*` (JwtProperties, JwtConfig, JwtClaims, JwtService, JwtAuthenticationToken, DbJwtDecoder)
+10. [ ] Buat `internal/crypto/*` (MasterKeyProvider, AesGcmService, RsaKeyService, PasswordHasher)
+11. [ ] Buat `internal/entity/*` (SigningKey, RefreshToken, UserCredential)
+12. [ ] Buat `internal/repository/*` (SigningKeyRepository, RefreshTokenRepository, UserCredentialRepository)
+13. [ ] Buat `internal/dto/*` (SigningKeyData, SigningKeyStatus, LoginRequest, RefreshRequest, TokenResponse, TokenWithId, RotatedToken)
+14. [ ] Buat `internal/service/*` (SigningKeyService, RefreshTokenService, AuthService, AuthApiImpl)
+15. [ ] Buat `internal/deny/*` (RedisConfig, AccessTokenDenyList)
+16. [ ] Buat `internal/cookie/CookieAuthenticationFilter.java`
+17. [ ] Buat `internal/job/*` (SigningKeyRotationJob/Scheduler, MasterKeyRotationJob/Scheduler, SigningKeySeeder)
+18. [ ] Buat `internal/config/AuthSecurityConfig.java` (termasuk `passwordEncoder` bean)
+19. [ ] Buat controller di `internal/delivery/http/`: `AuthController.java`, `AuthWebController.java`
+20. [ ] Set env `MASTER_KEY_CURRENT`
+21. [ ] Start Redis + Postgres
+22. [ ] `./mvnw compile`
+23. [ ] `./mvnw test -Dtest="ModularityTests"` — **harus hijau**
+24. [ ] `./mvnw test`
+25. [ ] `./mvnw spring-boot:run`
 
 ---
 
@@ -2613,7 +2649,7 @@ export SPRING_DATA_REDIS_PORT=6379
 │    │              │                                                        │
 │    ▼              ▼                                                        │
 │  ┌─────────────────────────────────────────────────────────────────┐      │
-│  │  SecurityConfig (3 chain)                                        │      │
+│  │  AuthSecurityConfig (3 chain)                                    │      │
 │  │                                                                  │      │
 │  │  Chain 1 /api/**  → BearerTokenAuthenticationFilter → JWT Decode │      │
 │  │  Chain 2 /web/**  → CookieAuthenticationFilter → JWT Decode       │      │
@@ -2624,8 +2660,8 @@ export SPRING_DATA_REDIS_PORT=6379
 │  ┌─────────────────────────────────────────────────────────────────┐      │
 │  │  DbJwtDecoder                                                    │      │
 │  │  1. Parse JWT → get kid                                          │      │
-│  │  2. Query signing_keys WHERE kid=? AND status IN (ACTIVE,PREV)   │      │
-│  │  3. Build RSAKey from public_key (stored raw Base64)             │      │
+│  │  2. signing_key_service.getActiveOrPrevious() → DTO list         │      │
+│  │  3. Build RSAKey dari public_key (stored raw Base64)             │      │
 │  │  4. NimbusJwtDecoder.verify(signature, RSAKey)                   │      │
 │  │  5. Jwt (sub=userId, email, roles, jti, exp)                     │      │
 │  └─────────────────────────────────────────────────────────────────┘      │
@@ -2646,7 +2682,7 @@ export SPRING_DATA_REDIS_PORT=6379
 │                        │                                                   │
 │                        ▼                                                   │
 │  ┌─────────────────────────────────────────────────────────────────┐      │
-│  │  Controller / Service                                            │      │
+│  │  Controller (internal/delivery/http) / AuthService (internal/service)  │      │
 │  └─────────────────────────────────────────────────────────────────┘      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -2659,6 +2695,6 @@ export SPRING_DATA_REDIS_PORT=6379
 2. **Rotasi master key** memerlukan `MASTER_KEY_PREVIOUS` tersisa sampai semua key selesai di-re-encrypt oleh `MasterKeyRotationJob`.
 3. **SameSite=Strict + CSRF aktif** di chain `/web/**` — double defense.
 4. **CSRF disabled** di chain `/api/**` karena mobile tidak pakai cookie — aman.
-5. **Refresh token detection reuse**: jika parent_token_id sudah punya child → token di-reuse → seluruh sesi di-revoke.
+5. **Refresh token detection reuse**: jika token sudah di-revoke (parent punya child) → token di-reuse → seluruh sesi di-revoke.
 6. **Access token deny-list** Redis dengan TTL = `exp - now` — tidak membocorkan memori tanpa batas.
-7. Semua UUID **v7** via `Uuidv7.generate()` — termasuk `jti`, `kid`, refresh token id, user credential id.
+7. Semua UUID **v7** via `Uuidv7.generate()` — termasuk `jti`, `kid`, refresh token id, user credential id. **Dilarang** `UUID.randomUUID()` (v4).

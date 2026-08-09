@@ -9,7 +9,7 @@ spring:
     hibernate:
       ddl-auto: none
   flyway:
-    callback-locations:
+    locations:
       - classpath:db/migration
       - classpath:db/migration/auth
   data:
@@ -29,7 +29,7 @@ spring:
     job-store-type: jdbc
     jdbc:
       initialize-schema: never
-    scheduler-name: authScheduler
+    scheduler-name: appScheduler
     overwrite-existing-jobs: true
     wait-for-jobs-to-complete-on-shutdown: true
     startup-delay: 5s
