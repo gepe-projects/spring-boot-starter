@@ -118,6 +118,13 @@ com.gepe.app
 3. **STRICTLY FORBIDDEN**: creating foreign keys across schemas (e.g. `notification.emails.user_id` REFERENCES `user.users.id`). Store the ID as a plain column, resolve via `api`/event.
 4. **FORBIDDEN**: `@Entity` shared by 2 modules. If another module needs that data → create a DTO in `api`, don't share the entity.
 5. Add each new module path to `flyway.locations` (comma-separated or YAML list). Don't dump all migrations in one flat folder.
+6. **DTO over entity at boundaries**: `@Repository` methods return JPA entities, which are
+   package-private in `internal/`. A service MUST NOT return an entity across its package
+   boundary — it converts to a boundary-safe DTO (a record) and returns that. DTOs are
+   required at: module `api`, cross-sub-package calls, async/event boundaries, and any
+   method consumed by a controller. Pure same-package package-private helpers MAY pass the
+   entity directly. A DTO MUST NOT import/annotate entity types; it must define
+   boundary-safe enums (e.g. `SigningKeyStatus`) independent of the entity.
 
 ---
 
@@ -183,7 +190,7 @@ import org.springframework.modulith.docs.Documenter;
 
 class ModularityTests {
 
-    ApplicationModules modules = ApplicationModules.of(AuthApplication.class);
+    ApplicationModules modules = ApplicationModules.of(Application.class);
 
     @Test
     void verifyModularity() {

@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.modulith.Modulith;
 
 @Modulith(sharedModules = "platform")
-public class AuthApplication {
+public class Application {
 
-	public static void main(String[] args) {
-		SpringApplication.run(AuthApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
 
 }

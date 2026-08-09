@@ -1,6 +1,6 @@
 spring:
   application:
-    name: auth
+    name: App
   datasource:
     url: jdbc:postgresql://localhost:5432/app
     username: root
@@ -9,6 +9,19 @@ spring:
     hibernate:
       ddl-auto: none
   flyway:
+    callback-locations:
+      - classpath:db/migration
+      - classpath:db/migration/auth
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2s
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
   docker:
     compose:
       enabled: false
@@ -36,3 +49,18 @@ spring:
         published: 10m
         processing: 30m
         resubmitted: 10m
+
+app:
+  security:
+    issuer: http://localhost:8080
+    access-token-ttl: 15m
+    refresh-token-ttl: 30d
+    signing-key-rotation-cron: "0 0 3 1 * ?"
+    master-key-rotation-cron: "0 0 4 1 * ?"
+    cookie:
+      name: ACCESS_TOKEN
+      path: /
+      same-site: strict
+      secure: false   # true di production (HTTPS)
+      max-age: 15m
+    deny-list-prefix: revoked_at

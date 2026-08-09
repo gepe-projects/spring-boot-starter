@@ -6,7 +6,7 @@ import org.springframework.modulith.docs.Documenter;
 
 class ModularityTests {
 
-    private final ApplicationModules modules = ApplicationModules.of(AuthApplication.class);
+    private final ApplicationModules modules = ApplicationModules.of(Application.class);
 
     @Test
     void verifyModularity() {
