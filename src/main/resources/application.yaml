@@ -1,6 +1,17 @@
 spring:
   application:
     name: App
+  security:
+    oauth2:
+      client:
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid, profile, email
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/app}
     username: ${SPRING_DATASOURCE_USERNAME:root}
@@ -47,7 +58,7 @@ spring:
     events:
       republish-outstanding-events-on-restart: false
       staleness:
-        check-interval: 1m
+        check-interval: 5m
         published: 10m
         processing: 30m
         resubmitted: 10m
@@ -73,3 +84,7 @@ app:
     refresh-token-ttl: ${APP_SECURITY_REFRESH_TOKEN_TTL:30d}
     signing-key-rotation-cron: "0 0 3 1 * ?"
     master-key-rotation-cron: "0 0 4 1 * ?"
+    oauth:
+      redirect-uri: ${APP_SECURITY_OAUTH_REDIRECT_URI:http://localhost:8080/auth/oauth/google/callback}
+      frontend-redirect-uris: ${APP_SECURITY_OAUTH_FRONTEND_REDIRECT_URIS:http://localhost:3000}
+      one-time-code-ttl: 5m

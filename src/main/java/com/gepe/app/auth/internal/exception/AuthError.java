@@ -36,6 +36,12 @@ public enum AuthError implements ErrorCode {
     ENCRYPTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "auth.encryption_failed"),
     DECRYPTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "auth.decryption_failed"),
     MASTER_KEY_INVALID(HttpStatus.INTERNAL_SERVER_ERROR, "auth.master_key_invalid"),
+
+    // ── oauth ──
+    OAUTH_STATE_INVALID(HttpStatus.BAD_REQUEST, "auth.oauth_state_invalid"),
+    OAUTH_CODE_REUSED(HttpStatus.BAD_REQUEST, "auth.oauth_code_reused"),
+    OAUTH_REDIRECT_FORBIDDEN(HttpStatus.BAD_REQUEST, "auth.oauth_redirect_forbidden"),
+    OAUTH_PROVIDER_ERROR(HttpStatus.BAD_GATEWAY, "auth.oauth_provider_error"),
     ;
 
     private final HttpStatus httpStatus;

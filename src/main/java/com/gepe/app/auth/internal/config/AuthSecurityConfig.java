@@ -69,7 +69,8 @@ class AuthSecurityConfig {
                 prefix + "/register",
                 prefix + "/login",
                 prefix + "/refresh",
-                prefix + "/logout"
+                prefix + "/logout",
+                prefix + "/oauth/**"
         ));
         http.authorizeHttpRequests(a -> a.anyRequest().permitAll());
         http.csrf(AbstractHttpConfigurer::disable);
@@ -101,6 +102,19 @@ class AuthSecurityConfig {
                 .accessDeniedHandler((request, response, accessDeniedException) ->
                         writeJsonError(response, HttpServletResponse.SC_FORBIDDEN,
                                 "{\"message\":\"Access denied\"}")));
+        return http.build();
+    }
+
+    // ──────────────────────────────────────────────
+    // Chain 4: Google OAuth callback → public
+    // ──────────────────────────────────────────────
+    @Bean
+    @Order(4)
+    SecurityFilterChain oauthCallback(HttpSecurity http) throws Exception {
+        http.securityMatchers(m -> m.requestMatchers(HttpMethod.GET, "/auth/oauth/google/callback"));
+        http.authorizeHttpRequests(a -> a.anyRequest().permitAll());
+        http.csrf(AbstractHttpConfigurer::disable);
+        http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         return http.build();
     }
 

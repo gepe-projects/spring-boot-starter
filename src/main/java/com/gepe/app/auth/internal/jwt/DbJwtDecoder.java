@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@Primary
 class DbJwtDecoder implements JwtDecoder {
 
     private final SigningKeyService signingKeyService;

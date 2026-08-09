@@ -52,9 +52,9 @@ public class AuthService {
     }
 
     // ── login google (backend OAuth) + account linking ──
-    public TokenResponse googleLogin(UUID googleSub, String email, String deviceInfo, String ipAddress) {
+    public TokenResponse googleLogin(String googleSub, String email, String deviceInfo, String ipAddress) {
         AuthIdentity existing = authIdentityRepository
-                .findByProviderAndProviderId(AuthIdentity.PROVIDER_GOOGLE, googleSub.toString())
+                .findByProviderAndProviderId(AuthIdentity.PROVIDER_GOOGLE, googleSub)
                 .orElse(null);
 
         User user;
@@ -72,7 +72,7 @@ public class AuthService {
                 userRepository.save(user);
             }
             authIdentityRepository.save(new AuthIdentity(
-                    user.getId(), AuthIdentity.PROVIDER_GOOGLE, googleSub.toString(), email, null));
+                    user.getId(), AuthIdentity.PROVIDER_GOOGLE, googleSub, email, null));
             if (isNew) {
                 events.publishEvent(new UserRegistered(user.getId(), user.getEmail()));
             }
