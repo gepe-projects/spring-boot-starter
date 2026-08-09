@@ -199,10 +199,45 @@ com.gepe.app
    any method consumed by a controller. Pure same-package package-private helpers MAY pass the entity directly. A DTO
    MUST NOT import/annotate entity types; it must define boundary-safe enums (e.g. `SigningKeyStatus`) independent of
    the entity.
+7. **Every listable table MUST be indexed for cursor pagination** (see §4). Any table that will be listed through a
+   cursor-paginated endpoint MUST ship a composite index matching its canonical `ORDER BY`. The `id` column MUST be the
+   last key of the index (deterministic tiebreaker). Examples:
+   ```sql
+   -- per-user list, newest first
+   CREATE INDEX idx_orders_user_created ON orders (user_id, created_at DESC, id DESC);
+   -- global list, newest first
+   CREATE INDEX idx_users_created ON users (created_at DESC, id DESC);
+   ```
+   An index that does NOT end with the PK `id` will NOT support stable keyset pagination — the query falls back to a
+   sort/full scan and the whole point of §4 is lost.
 
 ---
 
-## 4. Inter-Module Communication
+## 4. Pagination (MANDATORY)
+
+**Cursor/keyset pagination is the ONLY allowed pagination strategy.** OFFSET/LIMIT pagination is **FORBIDDEN**.
+
+1. All list endpoints MUST paginate with an opaque cursor (base64-encoded `sort_value + id`) or an explicit keyset
+   (`WHERE (sort_col, id) < (?, ?)`). Never `LIMIT n OFFSET m`.
+2. `ORDER BY` MUST use a **stable, unique, indexed** key. The canonical pattern is:
+   ```sql
+   ORDER BY <sort_col> DESC, id DESC
+   ```
+   where `id` is the deterministic tiebreaker and the last key of every comparison. Composite indexes must match this
+   exactly (see §3.7).
+3. Each list response MUST include a `nextCursor` field (`null` when the last page is reached). The cursor MUST be
+   opaque to clients — never expose raw column values.
+4. Do NOT filter on non-indexed columns in the `WHERE` of a paginated query (reduces to a full scan per page).
+5. **Why cursor, not offset** (security & scale):
+   - Offset is O(n) scan — every page re-reads all previous rows; degrades badly as data grows.
+   - Offset is **unstable** under concurrent inserts/deletes — rows can be skipped or duplicated between pages.
+   - Cursor is deterministic, O(page size) per request, and gives a stable view while paging.
+6. This rule synergizes with the **UUID v7** mandate: v7 IDs are time-ordered, so `ORDER BY ... , id DESC` already
+   reflects insertion order without extra bookkeeping columns.
+
+---
+
+## 5. Inter-Module Communication
 
 ### Priority (most preferred first):
 
@@ -245,7 +280,7 @@ foundation for safe multi-instance operation.
 
 ---
 
-## 5. Multi-Instance Rules
+## 6. Multi-Instance Rules
 
 | Concern                         | Rule                                                                                                                                                                                                                                                                                                                                                                           |
 |---------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -258,7 +293,7 @@ foundation for safe multi-instance operation.
 
 ---
 
-## 6. Modularity Tests (NEVER delete or skip)
+## 7. Modularity Tests (NEVER delete or skip)
 
 ```java
 package com.gepe.app;
@@ -287,7 +322,7 @@ If these tests are red → **do NOT bypass or comment them out.** Fix the archit
 
 ---
 
-## 7. When to Create a New Module?
+## 8. When to Create a New Module?
 
 Create a new module when:
 
@@ -302,7 +337,7 @@ Don't create a new module when:
 
 ---
 
-## 8. Common Mistakes AI Must Avoid
+## 9. Common Mistakes AI Must Avoid
 
 1. ❌ Making every class `public` "so it's easy to call from anywhere" — this destroys the entire modulith.
 2. ❌ Using `UUID.randomUUID()` (v4) or `UUID.nameUUIDFromBytes()` (v3) — ALL UUIDs must be v7 via `Uuidv7.generate()`.
@@ -319,10 +354,11 @@ Don't create a new module when:
    into `job/` and `*Scheduler` as shown in §2.
 10. ❌ Creating a `publisher/` package/abstraction for events — publishing belongs inline in `service/`, where the
     transaction already lives.
+11. ❌ Using OFFSET/LIMIT pagination anywhere — the ONLY allowed strategy is cursor/keyset (§4).
 
 ---
 
-## 9. Microservice Extraction Roadmap (when needed)
+## 10. Microservice Extraction Roadmap (when needed)
 
 Because the structure is disciplined from the start, extraction is mechanical, not a rewrite:
 

@@ -12,6 +12,21 @@ spring:
     locations:
       - classpath:db/migration
       - classpath:db/migration/auth
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
   data:
     redis:
       host: localhost
@@ -63,4 +78,3 @@ app:
       same-site: strict
       secure: false   # true di production (HTTPS)
       max-age: 15m
-    deny-list-prefix: revoked_at
