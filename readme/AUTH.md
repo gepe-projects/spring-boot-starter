@@ -46,7 +46,7 @@ Client (Web / Mobile / SPA)
 ```
 com.gepe.app.auth/
 ├── api/                                  ← Public contract (inter‑module)
-│   ├── AuthApi.java                      ←  sync interface
+│   ├── UserApi.java                      ←  sync interface
 │   ├── CurrentUser.java                  ←  DTO for other modules
 │   ├── UserAuthenticated.java            ←  event (login)
 │   └── UserRegistered.java              ←  event (new user)
@@ -110,7 +110,7 @@ com.gepe.app.auth/
     │   ├── SigningKeyRepository.java
     │   └── UserRepository.java
     └── service/
-        ├── AuthApiImpl.java              ← implements api/AuthApi
+        ├── UserApiImpl.java              ← implements api/UserApi
         ├── AuthService.java              ← use‑case orchestration + event publishing
         ├── RefreshTokenService.java      ← opaque token issue/rotate/revoke
         ├── SessionService.java           ← session list + revoke (cursor pagination)

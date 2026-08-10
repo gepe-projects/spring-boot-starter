@@ -83,9 +83,9 @@ com.gepe.app
 ├── AuthApplication.java
 ├── <module-name>/                          ← root package = 1 module (example: "auth")
 │   ├── api/                                ← ONLY public types live here
-│   │   ├── AuthApi.java                    ← public interface, for inter-module SYNC calls
+│   │   ├── UserApi.java                    ← public interface, for inter-module SYNC calls
 │   │   ├── UserRegistered.java             ← public event record, for inter-module ASYNC calls
-│   │   └── AuthResult.java                 ← public DTO returned by AuthApi (never an entity)
+│   │   └── CurrentUser.java                ← public DTO returned by UserApi (never an entity)
 │   └── internal/                           ← MANDATORY. All implementation detail. Package-private.
 │       ├── entity/
 │       │   ├── User.java                   ← @Entity, schema = "auth"

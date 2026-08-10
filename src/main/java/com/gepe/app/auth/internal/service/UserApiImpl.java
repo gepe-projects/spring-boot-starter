@@ -1,19 +1,20 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.AuthApi;
 import com.gepe.app.auth.api.CurrentUser;
+import com.gepe.app.auth.api.UserApi;
 import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.repository.UserRepository;
-import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class AuthApiImpl implements AuthApi {
+public class UserApiImpl implements UserApi {
 
     private final UserRepository userRepository;
 
