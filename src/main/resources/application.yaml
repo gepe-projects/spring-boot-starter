@@ -1,0 +1,94 @@
+spring:
+  application:
+    name: App
+  security:
+    oauth2:
+      client:
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid, profile, email
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/app}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    locations:
+      - classpath:db/migration
+    enabled: true
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2s
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+      username: ${SPRING_DATA_REDIS_USERNAME:root}
+      password: ${SPRING_DATA_REDIS_PASSWORD:root}
+  docker:
+    compose:
+      enabled: false
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never
+    scheduler-name: appScheduler
+    overwrite-existing-jobs: true
+    wait-for-jobs-to-complete-on-shutdown: true
+    startup-delay: 5s
+    properties:
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.jobStore.isClustered: true
+      org.quartz.jobStore.tablePrefix: QRTZ_
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      org.quartz.jobStore.clusterCheckinInterval: "15000"
+      org.quartz.jobStore.misfireThreshold: "60000"
+      org.quartz.threadPool.threadCount: "5"
+  modulith:
+    events:
+      republish-outstanding-events-on-restart: false
+      staleness:
+        check-interval: 5m
+        published: 10m
+        processing: 30m
+        resubmitted: 10m
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+app:
+  security:
+    issuer: ${APP_SECURITY_ISSUER:http://localhost:8080}
+    access-token-ttl: ${APP_SECURITY_ACCESS_TOKEN_TTL:15m}
+    refresh-token-ttl: ${APP_SECURITY_REFRESH_TOKEN_TTL:30d}
+    signing-key-rotation-cron: "0 0 3 1 * ?"
+    master-key-rotation-cron: "0 0 4 1 * ?"
+    oauth:
+      redirect-uri: ${APP_SECURITY_OAUTH_REDIRECT_URI:http://localhost:8080/auth/oauth/google/callback}
+      frontend-redirect-uris: ${APP_SECURITY_OAUTH_FRONTEND_REDIRECT_URIS:http://localhost:3000}
+      one-time-code-ttl: 5m
+    rate-limit:
+      base-delay: ${APP_SECURITY_RATE_LIMIT_BASE:1m}
+      max-delay: ${APP_SECURITY_RATE_LIMIT_MAX:1h}
+      max-attempts: ${APP_SECURITY_RATE_LIMIT_MAX_ATTEMPTS:5}
