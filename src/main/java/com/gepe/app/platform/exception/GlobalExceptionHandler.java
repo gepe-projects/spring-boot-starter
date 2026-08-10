@@ -51,16 +51,14 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(AuthorizationDeniedException.class)
 	public ResponseEntity<ErrorResponse> handleAuthorizationDeniedException(
 			AuthorizationDeniedException exception) {
-		var errorResponse =
-				new ErrorResponse(messageHelper.get("http.forbidden"), exception.getMessage());
+		var errorResponse = new ErrorResponse(messageHelper.get("http.forbidden"), null);
 		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
 	}
 
 	/** Resource not found error */
 	@ExceptionHandler(NoResourceFoundException.class)
 	public ResponseEntity<ErrorResponse> handleValidation(NoResourceFoundException exception) {
-		var errorResponse =
-				new ErrorResponse(messageHelper.get("http.not_found"), exception.getMessage());
+		var errorResponse = new ErrorResponse(messageHelper.get("http.not_found"), null);
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
 	}
 
@@ -80,8 +78,6 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorResponse> handleInvalidBody(
 			HttpMessageNotReadableException exception) {
-		String detail = "Invalid request body";
-
 		Throwable cause = exception.getCause();
 		log.warn("cause class: {}", cause == null ? "null" : cause.getClass().getName());
 		log.warn("cause message: {}", cause == null ? "null" : cause.getMessage());
@@ -99,6 +95,7 @@ public class GlobalExceptionHandler {
 			String fieldName =
 					ife.getPath().isEmpty() ? "unknown" : ife.getPath().get(0).getPropertyName();
 
+			String message;
 			if (ife.getTargetType() != null && ife.getTargetType().isEnum()) {
 
 				@SuppressWarnings("null")
@@ -107,18 +104,19 @@ public class GlobalExceptionHandler {
 								.map(Object::toString)
 								.collect(Collectors.joining(", "));
 
-				ValidationError error =
-						new ValidationError(fieldName, messageHelper.get("http.invalid_enum_field", accepted));
-
-				return ResponseEntity.badRequest()
-						.body(new ErrorResponse(messageHelper.get("validation.failed"), List.of(error)));
+				message = messageHelper.get("http.invalid_enum_field", accepted);
+			} else {
+				message = messageHelper.get("http.invalid_field_value", fieldName, ife.getValue());
 			}
 
-			detail = messageHelper.get("http.invalid_field_value", fieldName, ife.getValue());
+			return ResponseEntity.badRequest()
+					.body(new ErrorResponse(
+							messageHelper.get("validation.failed"),
+							List.of(new ValidationError(fieldName, message))));
 		}
 
 		return ResponseEntity.badRequest()
-				.body(new ErrorResponse(messageHelper.get("http.bad_request"), detail));
+				.body(new ErrorResponse(messageHelper.get("http.bad_request"), null));
 	}
 
 	/** Missing request parameter */
@@ -129,7 +127,9 @@ public class GlobalExceptionHandler {
 		ErrorResponse response =
 				new ErrorResponse(
 						messageHelper.get("http.bad_request"),
-						exception.getParameterName() + " parameter is required");
+						List.of(new ValidationError(
+								exception.getParameterName(),
+								messageHelper.get("http.parameter_required"))));
 
 		return ResponseEntity.badRequest().body(response);
 	}
@@ -141,7 +141,10 @@ public class GlobalExceptionHandler {
 
 		ErrorResponse response =
 				new ErrorResponse(
-						messageHelper.get("http.bad_request"), exception.getName() + " has invalid value");
+						messageHelper.get("http.bad_request"),
+						List.of(new ValidationError(
+								exception.getName(),
+								messageHelper.get("http.invalid_param_value", exception.getName()))));
 
 		return ResponseEntity.badRequest().body(response);
 	}
@@ -200,8 +203,16 @@ public class GlobalExceptionHandler {
 		String localizedMessage =
 				messageHelper.get(exception.getErrorCode().getMessageKey(), exception.getArgs());
 		log.error(exception.toString());
-		ErrorResponse response = new ErrorResponse(null, Map.of("message", localizedMessage));
+		ErrorResponse response = new ErrorResponse(localizedMessage, null);
 		return ResponseEntity.status(exception.getErrorCode().getHttpStatus()).body(response);
+	}
+
+	/** Validation error thrown from the service layer */
+	@ExceptionHandler(ValidationException.class)
+	public ResponseEntity<ErrorResponse> handleServiceValidation(ValidationException exception) {
+		ErrorResponse response =
+				new ErrorResponse(messageHelper.get("validation.failed"), exception.getErrors());
+		return ResponseEntity.badRequest().body(response);
 	}
 
 	private ValidationError toValidationError(FieldError error) {

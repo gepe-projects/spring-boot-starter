@@ -1,6 +1,7 @@
 package com.gepe.app.auth.internal.config;
 
 import com.gepe.app.platform.web.api.ApiVersions;
+import com.gepe.app.platform.web.response.ErrorResponse;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -21,10 +22,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity
 class AuthSecurityConfig {
+
+    private final ObjectMapper objectMapper;
+
+    AuthSecurityConfig(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Bean
     PasswordEncoder passwordEncoder() {
@@ -95,13 +103,13 @@ class AuthSecurityConfig {
                         .jwtAuthenticationConverter(jwtAuthConverter))
                 .authenticationEntryPoint((request, response, authException) ->
                         writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED,
-                                "{\"message\":\"Authentication required\"}")));
+                                "Authentication required")));
         http.csrf(AbstractHttpConfigurer::disable);
         http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.exceptionHandling(e -> e
                 .accessDeniedHandler((request, response, accessDeniedException) ->
                         writeJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                                "{\"message\":\"Access denied\"}")));
+                                "Access denied")));
         return http.build();
     }
 
@@ -131,17 +139,17 @@ class AuthSecurityConfig {
         http.exceptionHandling(e -> e
                 .authenticationEntryPoint((request, response, authException) ->
                         writeJsonError(response, HttpServletResponse.SC_UNAUTHORIZED,
-                                "{\"message\":\"Not found\"}"))
+                                "Not found"))
                 .accessDeniedHandler((request, response, accessDeniedException) ->
                         writeJsonError(response, HttpServletResponse.SC_FORBIDDEN,
-                                "{\"message\":\"Access denied\"}")));
+                                "Access denied")));
         return http.build();
     }
 
-    private void writeJsonError(HttpServletResponse response, int status, String body)
+    private void writeJsonError(HttpServletResponse response, int status, String message)
             throws IOException {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(status);
-        response.getWriter().write(body);
+        objectMapper.writeValue(response.getOutputStream(), new ErrorResponse(message, null));
     }
 }

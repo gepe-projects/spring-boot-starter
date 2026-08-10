@@ -13,7 +13,10 @@ import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.auth.internal.jwt.JwtService;
 import com.gepe.app.auth.internal.repository.AuthIdentityRepository;
 import com.gepe.app.auth.internal.repository.UserRepository;
+import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.exception.ServiceException;
+import com.gepe.app.platform.exception.ValidationException;
+import com.gepe.app.platform.web.response.ValidationError;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -35,6 +38,7 @@ public class AuthService {
     private final PasswordHasher passwordHasher;
     private final LoginRateLimiter loginRateLimiter;
     private final ApplicationEventPublisher events;
+    private final MessageHelper messageHelper;
 
     // ── login credentials ──
     public TokenResponse login(String email, String password, String deviceInfo, String ipAddress) {
@@ -96,7 +100,8 @@ public class AuthService {
 
         if (userRepository.existsByEmail(email)) {
             loginRateLimiter.onFailure(email);
-            throw new ServiceException(AuthError.EMAIL_ALREADY_LINKED);
+            throw new ValidationException(List.of(
+                    new ValidationError("email", messageHelper.get("auth.email.already_registered"))));
         }
         User user = new User(email, null);
         userRepository.save(user);
