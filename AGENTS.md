@@ -83,9 +83,9 @@ com.gepe.app
 ├── AuthApplication.java
 ├── <module-name>/                          ← root package = 1 module (example: "auth")
 │   ├── api/                                ← ONLY public types live here
-│   │   ├── UserApi.java                    ← public interface, for inter-module SYNC calls
+│   │   ├── UserService.java               ← public interface, for inter-module SYNC calls
 │   │   ├── UserRegistered.java             ← public event record, for inter-module ASYNC calls
-│   │   └── UserDto.java                   ← public DTO returned by UserApi (never an entity)
+│   │   └── UserDto.java                   ← public DTO returned by UserService (never an entity)
 │   └── internal/                           ← MANDATORY. All implementation detail. Package-private.
 │       ├── entity/
 │       │   ├── User.java                   ← @Entity, schema = "auth"
@@ -98,7 +98,7 @@ com.gepe.app
 │       │   │                                  the boundary; publishes events via
 │       │   │                                  ApplicationEventPublisher (no separate "publisher"
 │       │   │                                  class needed — publishing is part of the use case)
-│       │   └── UserService.java
+│       │   └── UserServiceImpl.java
 │       ├── jwt/
 │       │   ├── JwtService.java             ← sign / verify / parse tokens
 │       │   ├── JwtProperties.java          ← @ConfigurationProperties

@@ -1,7 +1,7 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.UserApi;
 import com.gepe.app.auth.api.UserDto;
+import com.gepe.app.auth.api.UserService;
 import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +14,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class UserApiImpl implements UserApi {
+public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
 

@@ -6,7 +6,7 @@ import java.util.UUID;
 /**
  * Synchronous contract untuk modul lain (prioritas 2 di AGENTS.md §5).
  */
-public interface UserApi {
+public interface UserService {
 
     Optional<UserDto> findByUserId(UUID userId);
 

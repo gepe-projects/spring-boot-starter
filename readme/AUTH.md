@@ -46,7 +46,7 @@ Client (Web / Mobile / SPA)
 ```
 com.gepe.app.auth/
 ├── api/                                  ← Public contract (inter‑module)
-│   ├── UserApi.java                      ←  sync interface
+│   ├── UserService.java                   ←  sync interface
 │   ├── UserDto.java                      ←  DTO data user (boundary, incl. roles)
 │   ├── UserAuthenticated.java            ←  event (login)
 │   └── UserRegistered.java              ←  event (new user)
@@ -111,7 +111,7 @@ com.gepe.app.auth/
     │   └── UserRepository.java
     └── service/
         ├── RoleResolver.java             ← default role USER + map roles → List<String>
-        ├── UserApiImpl.java              ← implements api/UserApi
+        ├── UserServiceImpl.java          ← implements api/UserService
         ├── AuthService.java              ← use‑case orchestration + event publishing
         ├── RefreshTokenService.java      ← opaque token issue/rotate/revoke
         ├── SessionService.java           ← session list + revoke (cursor pagination)
