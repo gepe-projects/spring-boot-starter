@@ -47,7 +47,7 @@ Client (Web / Mobile / SPA)
 com.gepe.app.auth/
 ├── api/                                  ← Public contract (inter‑module)
 │   ├── UserApi.java                      ←  sync interface
-│   ├── CurrentUser.java                  ←  DTO for other modules
+│   ├── UserDto.java                      ←  DTO data user (boundary, incl. roles)
 │   ├── UserAuthenticated.java            ←  event (login)
 │   └── UserRegistered.java              ←  event (new user)
 └── internal/                             ← Implementation detail
@@ -110,6 +110,7 @@ com.gepe.app.auth/
     │   ├── SigningKeyRepository.java
     │   └── UserRepository.java
     └── service/
+        ├── RoleResolver.java             ← default role USER + map roles → List<String>
         ├── UserApiImpl.java              ← implements api/UserApi
         ├── AuthService.java              ← use‑case orchestration + event publishing
         ├── RefreshTokenService.java      ← opaque token issue/rotate/revoke
@@ -186,9 +187,16 @@ Route yang tidak cocok **chain 0‑4** → ditolak oleh `fallback` (return JSON 
   "refreshToken": "<opaque-URL-safe-base64>",
   "refreshTokenId": "<UUID v7>",
   "sessionId": "<UUID v7>",
-  "userId": "<UUID v7>"
+  "user": {
+    "userId": "<UUID v7>",
+    "email": "<email>",
+    "emailVerified": true,
+    "roles": ["USER", "ADMIN"]
+  }
 }
 ```
+
+`user` = `auth/api/UserDto` (boundary DTO, aman dipakai modul lain). Auth/authz sendiri ditangani Spring Security via claim `roles` di JWT (`JwtAuthConverter` → `ROLE_*`), bukan dari field `user` ini.
 
 ---
 
@@ -201,11 +209,11 @@ POST /api/v1/auth/login {email, password}
 AuthService.login()
     ├── auth_identities WHERE provider='credentials' AND provider_id=email
     ├── BCrypt.verify(password, hash)
-    ├── resolveRoles(user)  → default ROLE_USER
+    ├── RoleResolver.effectiveRoles(user) → default USER
     ├── JwtService.issueAccessToken(userId, email, roles)  → RS256, TTL 15m
     ├── RefreshTokenService.issue(userId, device, ip, 30d)
     ├── events.publishEvent(UserAuthenticated)
-    └── return TokenResponse(accessToken, refreshToken, ...)
+    └── return TokenResponse(accessToken, refreshToken, ..., user=UserDto)
 ```
 
 **Register:** mirip — buat `User` + `auth_identities` (provider=credentials), publish `UserRegistered`.
@@ -429,7 +437,7 @@ File: `src/main/resources/i18n/auth/messages.properties` dan `messages_id.proper
 
 | Variable | Required | Default | Deskripsi |
 |----------|----------|---------|-----------|
-| `MASTER_KEY_CURRENT` | **Ya** | — | Base64 32‑byte AES‑256 key |
+| `MASTER_KEY_CURRENT` | **Ya** | — | Base64 32‑byte AES‑256 key. Profil `test` memakai default dev-key di `src/test/resources/application-test.yaml` (env var tetap menang) |
 | `MASTER_KEY_PREVIOUS` | Tidak | — | Key sebelumnya (untuk rotasi) |
 | `GOOGLE_CLIENT_ID` | Ya (OAuth) | — | Google Cloud Console client ID |
 | `GOOGLE_CLIENT_SECRET` | Ya (OAuth) | — | Google Cloud Console client secret |

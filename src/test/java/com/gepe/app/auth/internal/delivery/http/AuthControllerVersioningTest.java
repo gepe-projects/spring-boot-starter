@@ -1,11 +1,13 @@
 package com.gepe.app.auth.internal.delivery.http;
 
+import com.gepe.app.auth.api.UserDto;
 import com.gepe.app.auth.internal.dto.TokenResponse;
 import com.gepe.app.auth.internal.service.AuthService;
 import com.gepe.app.auth.internal.service.RefreshTokenService;
 import com.gepe.app.auth.internal.service.SessionService;
 import com.gepe.app.platform.config.i18n.MessageHelper;
-import java.util.UUID;
+import com.gepe.app.platform.support.Uuidv7;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -40,13 +42,14 @@ class AuthControllerVersioningTest {
     @Test
     void loginIsServedUnderVersionedPath() throws Exception {
         when(messageHelper.get("auth.login_success")).thenReturn("ok");
-        when(authService.login(eq("a@b.com"), eq("pw"), any(), any()))
+        when(authService.login(eq("a@b.com"), eq("password123"), any(), any()))
                 .thenReturn(new TokenResponse("access-token", "refresh-token",
-                        UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()));
+                        Uuidv7.generate(), Uuidv7.generate(),
+                        new UserDto(Uuidv7.generate(), "a@b.com", false, List.of("USER"))));
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"a@b.com\",\"password\":\"pw\"}"))
+                        .content("{\"email\":\"a@b.com\",\"password\":\"password123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"));
     }

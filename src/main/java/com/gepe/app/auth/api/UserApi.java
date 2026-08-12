@@ -8,9 +8,9 @@ import java.util.UUID;
  */
 public interface UserApi {
 
-    Optional<CurrentUser> findByUserId(UUID userId);
+    Optional<UserDto> findByUserId(UUID userId);
 
-    Optional<CurrentUser> findByEmail(String email);
+    Optional<UserDto> findByEmail(String email);
 
     boolean existsByEmail(String email);
 }

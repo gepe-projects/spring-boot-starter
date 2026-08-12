@@ -1,13 +1,13 @@
 package com.gepe.app.auth.internal.service;
 
 import com.gepe.app.auth.api.UserAuthenticated;
+import com.gepe.app.auth.api.UserDto;
 import com.gepe.app.auth.api.UserRegistered;
 import com.gepe.app.auth.internal.crypto.PasswordHasher;
 import com.gepe.app.auth.internal.dto.RotatedToken;
 import com.gepe.app.auth.internal.dto.TokenResponse;
 import com.gepe.app.auth.internal.dto.TokenWithId;
 import com.gepe.app.auth.internal.entity.AuthIdentity;
-import com.gepe.app.auth.internal.entity.Role;
 import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.auth.internal.jwt.JwtService;
@@ -135,9 +135,10 @@ public class AuthService {
                 .orElseThrow(() -> new ServiceException(AuthError.IDENTITY_NOT_FOUND));
 
         String accessToken = jwtService.issueAccessToken(
-                user.getId(), user.getEmail(), resolveRoles(user)).serialize();
+                user.getId(), user.getEmail(), RoleResolver.effectiveRoles(user)).serialize();
 
-        return new TokenResponse(accessToken, rotated.raw(), rotated.id(), rotated.sessionId(), user.getId());
+        return new TokenResponse(accessToken, rotated.raw(), rotated.id(), rotated.sessionId(),
+                toUserDto(user));
     }
 
     // ── logout → hanya revoke session (AT stateless tetap valid sampai expiry) ──
@@ -147,18 +148,16 @@ public class AuthService {
 
     private TokenResponse issueTokens(User user, String deviceInfo, String ipAddress) {
         String accessToken = jwtService.issueAccessToken(
-                user.getId(), user.getEmail(), resolveRoles(user)).serialize();
+                user.getId(), user.getEmail(), RoleResolver.effectiveRoles(user)).serialize();
 
         TokenWithId rt = refreshTokenService.issue(user.getId(), deviceInfo, ipAddress, Duration.ofDays(30));
 
         events.publishEvent(new UserAuthenticated(user.getId(), user.getEmail()));
-        return new TokenResponse(accessToken, rt.raw(), rt.id(), rt.id(), user.getId());
+        return new TokenResponse(accessToken, rt.raw(), rt.id(), rt.id(), toUserDto(user));
     }
 
-    private List<String> resolveRoles(User user) {
-        if (user.getRoles().isEmpty()) {
-            user.getRoles().add(Role.USER);
-        }
-        return user.getRoles().stream().map(Role::name).toList();
+    private UserDto toUserDto(User user) {
+        return new UserDto(user.getId(), user.getEmail(),
+                user.getEmailVerifiedAt() != null, RoleResolver.effectiveRoles(user));
     }
 }

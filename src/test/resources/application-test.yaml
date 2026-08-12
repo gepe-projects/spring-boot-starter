@@ -1,0 +1,5 @@
+# Test-only defaults (profil "test"). Di produksi MASTER_KEY_CURRENT (env var) menang
+# karena env var punya prioritas lebih tinggi dari application-*.yaml di classpath.
+master:
+  key:
+    current: T0lAz7OFoQzWppf2ELABM2XEKF+9ZWpydq00x5lHEhM=

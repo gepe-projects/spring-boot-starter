@@ -85,7 +85,7 @@ com.gepe.app
 │   ├── api/                                ← ONLY public types live here
 │   │   ├── UserApi.java                    ← public interface, for inter-module SYNC calls
 │   │   ├── UserRegistered.java             ← public event record, for inter-module ASYNC calls
-│   │   └── CurrentUser.java                ← public DTO returned by UserApi (never an entity)
+│   │   └── UserDto.java                   ← public DTO returned by UserApi (never an entity)
 │   └── internal/                           ← MANDATORY. All implementation detail. Package-private.
 │       ├── entity/
 │       │   ├── User.java                   ← @Entity, schema = "auth"

@@ -1,7 +1,7 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.CurrentUser;
 import com.gepe.app.auth.api.UserApi;
+import com.gepe.app.auth.api.UserDto;
 import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +19,13 @@ public class UserApiImpl implements UserApi {
     private final UserRepository userRepository;
 
     @Override
-    public Optional<CurrentUser> findByUserId(UUID userId) {
-        return userRepository.findById(userId).map(this::toCurrentUser);
+    public Optional<UserDto> findByUserId(UUID userId) {
+        return userRepository.findById(userId).map(this::toUserDto);
     }
 
     @Override
-    public Optional<CurrentUser> findByEmail(String email) {
-        return userRepository.findByEmail(email).map(this::toCurrentUser);
+    public Optional<UserDto> findByEmail(String email) {
+        return userRepository.findByEmail(email).map(this::toUserDto);
     }
 
     @Override
@@ -33,7 +33,8 @@ public class UserApiImpl implements UserApi {
         return userRepository.existsByEmail(email);
     }
 
-    private CurrentUser toCurrentUser(User u) {
-        return new CurrentUser(u.getId(), u.getEmail(), u.getEmailVerifiedAt() != null);
+    private UserDto toUserDto(User u) {
+        return new UserDto(u.getId(), u.getEmail(), u.getEmailVerifiedAt() != null,
+                RoleResolver.effectiveRoles(u));
     }
 }
