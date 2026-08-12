@@ -69,14 +69,14 @@ public class MasterKeyProvider {
         try {
             byte[] raw = Base64.getDecoder().decode(encoded);
             if (raw.length != AES_KEY_SIZE) {
-                log.error("Master key {} must be 32 bytes (AES-256), got {} bytes",
-                          keyId, raw.length);
+                log.warn("Master key {} must be 32 bytes (AES-256), got {} bytes — ignoring",
+                         keyId, raw.length);
                 return;
             }
             keys.put(keyId, new SecretKeySpec(raw, "AES"));
             log.info("Loaded master key: {}", keyId);
         } catch (IllegalArgumentException e) {
-            log.error("Master key {} is not valid Base64", keyId, e);
+            log.warn("Master key {} is not valid Base64 — ignoring", keyId);
         }
     }
 }
