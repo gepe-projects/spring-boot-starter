@@ -31,6 +31,12 @@ public class RefreshTokenService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int TOKEN_BYTES = 64;
 
+    private static final Duration RETENTION_AFTER_EXPIRY = Duration.ofDays(7);
+    private static final Duration RETENTION_AFTER_REVOKED = Duration.ofDays(3);
+    private static final int BATCH_SIZE = 500;
+    private static final int MAX_BATCHES_PER_RUN = 200;
+
+
     private final RefreshTokenRepository refreshTokenRepository;
 
     public TokenWithId issue(UUID userId, String deviceInfo, String ipAddress, Duration ttl) {
@@ -127,6 +133,25 @@ public class RefreshTokenService {
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new ServiceException(GlobalError.SYSTEM_ERROR);
+        }
+    }
+
+    // rt cleeanup, jgn pake @transactional disini biar di handle repo aja karna ini looping ges biar ga ngelock lama
+    public void cleanup(){
+        Instant cutOff = Instant.now().minus(RETENTION_AFTER_EXPIRY);
+        Instant cutOffRevoke = Instant.now().minus(RETENTION_AFTER_REVOKED);
+        int deleted = 0;
+        int batches = 0;
+        int batch;
+        do {
+            batch = refreshTokenRepository.deleteExpiredBatch(cutOff,cutOffRevoke,BATCH_SIZE);
+            deleted += batch;
+            batches++;
+            if (batch > 0) batches++;
+        } while (batch > 0 && batches < MAX_BATCHES_PER_RUN);
+
+        if (deleted > 0 ){
+            log.info("Cleaned up expired refresh tokens: deleted={}, batches={}", deleted, batches);
         }
     }
 }

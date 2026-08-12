@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
@@ -53,4 +54,18 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     int revokeSessionFamily(@Param("sessionId") UUID sessionId, @Param("now") Instant now);
 
     List<RefreshToken> findBySessionId(UUID sessionId);
+
+    @Modifying
+    @Transactional // ini wajib disini, agar nanti kalo di loop di method dia ga ngonci lama misal 100rb row di konci. tapi cukup konci sebentar lalu buka dan konci lagi sampai loop selesai
+    @Query(nativeQuery = true, value = """
+        DELETE FROM auth.refresh_tokens
+        WHERE id IN (
+           SELECT id FROM auth.refresh_tokens
+           WHERE (status = 'ACTIVE'  AND expires_at < :cutOff)
+              OR (status = 'REVOKED' AND revoked_at < :revokedCutOff)
+           ORDER BY id
+           LIMIT :batchSize
+        )
+    """)
+    int deleteExpiredBatch(@Param("cutOff") Instant cutOff, @Param("revokedCutOff") Instant revokedCutOff, @Param("batchSize") int batchSize);
 }

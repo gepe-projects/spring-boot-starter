@@ -82,8 +82,12 @@ app:
     issuer: ${APP_SECURITY_ISSUER:http://localhost:8080}
     access-token-ttl: ${APP_SECURITY_ACCESS_TOKEN_TTL:15m}
     refresh-token-ttl: ${APP_SECURITY_REFRESH_TOKEN_TTL:30d}
-    signing-key-rotation-cron: "0 0 3 1 * ?"
-    master-key-rotation-cron: "0 0 4 1 * ?"
+    # Signing key - tiap 3 bulan (Jan, Apr, Jul, Okt), jam 03:00
+    signing-key-rotation-cron: "0 0 3 1 1,4,7,10 ?"
+    # Master key - tiap 6 bulan (Jan, Jul), jam 04:00
+    master-key-rotation-cron: "0 0 4 1 1,7 ?"
+    # RT cleanup "0 0 3 * * ?" (tiap hari jam 03:00)
+    refresh-token-cleanup-cron: "0 0 3 * * ?"
     oauth:
       redirect-uri: ${APP_SECURITY_OAUTH_REDIRECT_URI:http://localhost:8080/auth/oauth/google/callback}
       frontend-redirect-uris: ${APP_SECURITY_OAUTH_FRONTEND_REDIRECT_URIS:http://localhost:3000}

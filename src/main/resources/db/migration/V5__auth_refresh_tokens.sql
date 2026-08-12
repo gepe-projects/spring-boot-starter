@@ -31,3 +31,13 @@ CREATE INDEX idx_refresh_tokens_session
 -- quick filter: active sessions per user
 CREATE INDEX idx_refresh_tokens_user_status
     ON auth.refresh_tokens (user_id, status);
+
+-- support cleanup job (AGENTS.md §3.7 — meski ini bukan cursor pagination,
+-- prinsip "index harus match predicate" tetap berlaku)
+CREATE INDEX idx_refresh_tokens_cleanup_expired
+    ON auth.refresh_tokens (expires_at)
+    WHERE status = 'ACTIVE';
+
+CREATE INDEX idx_refresh_tokens_cleanup_revoked
+    ON auth.refresh_tokens (revoked_at)
+    WHERE status = 'REVOKED';
