@@ -14,6 +14,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -160,6 +161,29 @@ public class GoogleOAuthService {
         } catch (JacksonException e) {
             throw new ServiceException(AuthError.OAUTH_CODE_REUSED);
         }
+    }
+
+    public URI errorRedirect(String stateParam, String error) {
+        String raw = redis.opsForValue().getAndDelete(STATE_PREFIX + stateParam);
+        if (raw != null) {
+            try {
+                OAuthState stateData = objectMapper.readValue(raw, OAuthState.class);
+                return UriComponentsBuilder.fromUriString(stateData.redirectUrl())
+                        .queryParam("error", error)
+                        .build(Map.of());
+            } catch (JacksonException e) {
+                log.warn("Failed to parse OAuth state during error redirect", e);
+            }
+        }
+
+        String fallbackOrigin = oAuthProperties.frontendRedirectUris().stream()
+                .map(this::extractOrigin)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse("http://localhost:3000");
+        return UriComponentsBuilder.fromUriString(fallbackOrigin + "/sign-in")
+                .queryParam("error", error)
+                .build(Map.of());
     }
 
     private String exchangeCodeForIdToken(String code, String codeVerifier) {

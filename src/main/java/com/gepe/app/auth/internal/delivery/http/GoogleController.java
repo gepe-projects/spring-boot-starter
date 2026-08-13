@@ -42,10 +42,14 @@ class GoogleController {
 
     @GetMapping("/auth/oauth/google/callback")
     ResponseEntity<Void> callback(
-            @RequestParam("state") String state,
-            @RequestParam("code") String code) {
+            @RequestParam(value = "error", required = false) String error,
+            @RequestParam(value = "state", required = false) String state,
+            @RequestParam(value = "code", required = false) String code) {
 
-        URI target = googleOAuthService.callback(state, code);
+        URI target = (error != null || code == null)
+                ? googleOAuthService.errorRedirect(state, error != null ? error : "missing_code")
+                : googleOAuthService.callback(state, code);
+
         return ResponseEntity.status(HttpStatus.FOUND).location(target).build();
     }
 
