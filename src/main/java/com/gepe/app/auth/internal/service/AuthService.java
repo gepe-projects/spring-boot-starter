@@ -1,5 +1,6 @@
 package com.gepe.app.auth.internal.service;
 
+import com.gepe.app.auth.api.RoleType;
 import com.gepe.app.auth.api.UserAuthenticated;
 import com.gepe.app.auth.api.UserDto;
 import com.gepe.app.auth.api.UserRegistered;
@@ -12,6 +13,7 @@ import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.auth.internal.jwt.JwtService;
 import com.gepe.app.auth.internal.repository.AuthIdentityRepository;
+import com.gepe.app.auth.internal.repository.RoleRepository;
 import com.gepe.app.auth.internal.repository.UserRepository;
 import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.exception.ServiceException;
@@ -33,6 +35,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final AuthIdentityRepository authIdentityRepository;
+    private final RoleRepository roleRepository;
     private final RefreshTokenService refreshTokenService;
     private final JwtService jwtService;
     private final PasswordHasher passwordHasher;
@@ -79,6 +82,7 @@ public class AuthService {
             boolean isNew = user == null;
             if (isNew) {
                 user = new User(email, Instant.now());
+                user.addRole(roleRepository.getReferenceById(RoleType.USER.name()));
                 userRepository.save(user);
             } else {
                 user.markEmailVerified();
@@ -104,6 +108,7 @@ public class AuthService {
                     new ValidationError("email", messageHelper.get("auth.email.already_registered"))));
         }
         User user = new User(email, null);
+        user.addRole(roleRepository.getReferenceById(RoleType.USER.name()));
         userRepository.save(user);
 
         authIdentityRepository.save(new AuthIdentity(
