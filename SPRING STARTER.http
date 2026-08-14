@@ -1,0 +1,177 @@
+# ============================================================
+# SPRING STARTER — IntelliJ HTTP Client
+# ============================================================
+# Cara pakai:
+#   1. Jalankan backend (./mvnw spring-boot:run).
+#   2. Buka file ini di IntelliJ IDEA Ultimate → klik ikon ▶ hijau per request.
+#   3. Jalankan "login" dulu — access_token / refresh_token / refresh_token_id
+#      otomatis tersimpan ke global variables lewat response handler.
+#   4. Request yang butuh autentikasi memakai {{access_token}}.
+#
+# Struktur mengikuti collection Postman: folder = module, sub folder = controller.
+# ============================================================
+
+@host = http://localhost:8080
+@api = {{host}}/api/v1
+
+# ============================================================
+# MODULE: admin
+# ============================================================
+
+# ---------------- AdminUserController ----------------
+
+### List users (admin)
+# @name list users
+GET {{api}}/admin/users?limit=20
+Authorization: Bearer {{access_token}}
+
+> {%
+    const items = response.body && response.body.data && response.body.data.items;
+    client.global.set("userId", items && items.length > 0 ? items[0].userId : "");
+%}
+
+### Get user detail (admin)
+GET {{api}}/admin/users/{{userId}}
+Authorization: Bearer {{access_token}}
+
+### Update user status (admin)
+PATCH {{api}}/admin/users/{{userId}}/status
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+    "status": "SUSPENDED"
+}
+
+### Assign roles (admin)
+PUT {{api}}/admin/users/{{userId}}/roles
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+    "roles": ["USER", "OPERATION"]
+}
+
+# ---------------- AdminKeyController ----------------
+
+### List signing keys (admin)
+GET {{api}}/admin/keys
+Authorization: Bearer {{access_token}}
+
+### Rotate RSA signing key (admin)
+POST {{api}}/admin/keys/rotate
+Authorization: Bearer {{access_token}}
+
+# ---------------- AdminAuditController ----------------
+
+### List audit logs (admin)
+GET {{api}}/admin/audit-logs?limit=20
+Authorization: Bearer {{access_token}}
+
+# ============================================================
+# MODULE: auth
+# ============================================================
+
+# ---------------- AuthController ----------------
+
+### Register
+POST {{api}}/auth/register
+Content-Type: application/json
+
+{
+    "email": "gepeunsafe@gmail.com",
+    "password": "password",
+    "displayName": "Nama Pengguna"
+}
+
+### Login
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "gepeunsafe@gmail.com",
+    "password": "password"
+}
+
+> {%
+    client.global.set("access_token", response.body.data.accessToken);
+    client.global.set("refresh_token", response.body.data.refreshToken);
+    client.global.set("refresh_token_id", response.body.data.refreshTokenId);
+%}
+
+### Refresh
+POST {{api}}/auth/refresh
+Content-Type: application/json
+
+{
+    "refreshToken": "{{refresh_token}}"
+}
+
+### Logout
+POST {{api}}/auth/logout
+Content-Type: application/json
+
+{
+    "refreshToken": "{{refresh_token}}"
+}
+
+### Logout other device
+DELETE {{api}}/auth/sessions/{{refresh_token_id}}
+Authorization: Bearer {{access_token}}
+
+### Sessions
+GET {{api}}/auth/sessions
+Authorization: Bearer {{access_token}}
+X-Refresh-Token: {{refresh_token}}
+
+### Revoke all session
+DELETE {{api}}/auth/sessions
+Authorization: Bearer {{access_token}}
+X-Refresh-Token: {{refresh_token}}
+
+### Me
+GET {{api}}/auth/me
+Authorization: Bearer {{access_token}}
+
+# ---------------- GoogleController ----------------
+
+### OAuth Google (mulai dance)
+GET {{api}}/auth/oauth/google?redirect_url=http://localhost:3000/callback
+
+### OAuth Google — exchange code
+POST {{api}}/auth/oauth/exchange
+Content-Type: application/json
+
+{
+    "code": "CrEhf4HSlV1An8aDr2zZjL8VjTi3ChgfilJS7QV8V0I"
+}
+
+# ---------------- JwksController ----------------
+
+### JWKS (public signing keys)
+GET {{host}}/.well-known/jwks.json
+
+# ============================================================
+# MODULE: user
+# ============================================================
+
+# ---------------- ProfileController ----------------
+
+### Update profile (user sendiri)
+PATCH {{api}}/users/me/profile
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+    "displayName": "Nama Pengguna",
+    "nickname": "gepe",
+    "bio": "Halo!"
+}
+
+# ============================================================
+# MODULE: platform
+# ============================================================
+
+### Health (actuator)
+GET {{host}}/actuator/health

@@ -8,69 +8,11 @@
   },
   "item": [
     {
-      "name": "auth",
+      "name": "admin",
+      "description": "Semua endpoint butuh akun dengan role ADMIN (atau SUPER_ADMIN). Hierarki: SUPER_ADMIN > ADMIN > OPERATION > USER — ADMIN tidak bisa mengubah ADMIN lain, dan akun SUPER_ADMIN hanya bisa diubah oleh dirinya sendiri. Login dulu → jalankan \"list users\" (userId terisi otomatis) → coba update status / assign roles / rotate key. Cara membuat akun SUPER_ADMIN: lihat backend/readme/ADMIN.md §5a.",
       "item": [
         {
-          "name": "oauth",
-          "item": [
-            {
-              "name": "oauth",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{url}}/auth/oauth/google?redirect_url=http://localhost:3000/callback",
-                  "host": [
-                    "{{url}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "oauth",
-                    "google"
-                  ],
-                  "query": [
-                    {
-                      "key": "redirect_url",
-                      "value": "http://localhost:3000/callback"
-                    }
-                  ]
-                }
-              },
-              "response": []
-            },
-            {
-              "name": "exchange",
-              "request": {
-                "method": "POST",
-                "header": [],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n    \"code\": \"CrEhf4HSlV1An8aDr2zZjL8VjTi3ChgfilJS7QV8V0I\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "{{url}}/auth/oauth/exchange",
-                  "host": [
-                    "{{url}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "oauth",
-                    "exchange"
-                  ]
-                }
-              },
-              "response": []
-            }
-          ]
-        },
-        {
-          "name": "ADMIN",
-          "description": "Semua endpoint butuh akun dengan role ADMIN (atau SUPER_ADMIN). Hierarki: SUPER_ADMIN > ADMIN > OPERATION > USER — ADMIN tidak bisa mengubah ADMIN lain, dan akun SUPER_ADMIN hanya bisa diubah oleh dirinya sendiri. Login dulu → jalankan \"list users\" (userId terisi otomatis) → coba update status / assign roles / rotate key. Cara membuat akun SUPER_ADMIN: lihat backend/readme/ADMIN.md §5a.",
+          "name": "AdminUserController",
           "item": [
             {
               "name": "list users",
@@ -244,7 +186,12 @@
                 }
               },
               "response": []
-            },
+            }
+          ]
+        },
+        {
+          "name": "AdminKeyController",
+          "item": [
             {
               "name": "list signing keys",
               "request": {
@@ -301,7 +248,12 @@
                 }
               },
               "response": []
-            },
+            }
+          ]
+        },
+        {
+          "name": "AdminAuditController",
+          "item": [
             {
               "name": "list audit logs",
               "request": {
@@ -337,32 +289,520 @@
               "response": []
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "auth",
+      "item": [
+        {
+          "name": "AuthController",
+          "item": [
+            {
+              "name": "register",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Response has JSON body\", function () {",
+                      "    pm.expect(pm.response.text()).to.not.be.empty;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200 && pm.response.text()) {",
+                      "    const json = pm.response.json();",
+                      "",
+                      "    if (json.data.accessToken) {",
+                      "        pm.collectionVariables.set(\"access_token\", json.data.accessToken);",
+                      "    }",
+                      "",
+                      "    if (json.data.refreshToken) {",
+                      "        pm.collectionVariables.set(\"refresh_token\", json.data.refreshToken);",
+                      "    }",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "",
+                    "value": "",
+                    "type": "text",
+                    "disabled": true
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"email\": \"gepeunsafe@gmail.com\",\n    \"password\": \"password\",\n    \"displayName\": \"Nama Pengguna\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{url}}/auth/register",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "register"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "login",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Response has JSON body\", function () {",
+                      "    pm.expect(pm.response.text()).to.not.be.empty;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200 && pm.response.text()) {",
+                      "    const json = pm.response.json();",
+                      "",
+                      "    if (json.data.accessToken) {",
+                      "        pm.collectionVariables.set(\"access_token\", json.data.accessToken);",
+                      "    }",
+                      "",
+                      "    if (json.data.refreshToken) {",
+                      "        pm.collectionVariables.set(\"refresh_token\", json.data.refreshToken);",
+                      "    }",
+                      "",
+                      "    if (json.data.refreshTokenId){",
+                      "        pm.collectionVariables.set(\"refresh_token_id\", json.data.refreshTokenId);",
+                      "    }",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                },
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"email\": \"gepeunsafe@gmail.com\",\n    \"password\": \"password\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{url}}/auth/login",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "response": [
+                  {
+                    "name": "login - TokenResponse (200)",
+                    "originalRequest": {
+                      "auth": {
+                        "type": "noauth"
+                      },
+                      "method": "POST",
+                      "header": [],
+                      "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"email\": \"gepeunsafe@gmail.com\",\n    \"password\": \"password\"\n}",
+                        "options": {
+                          "raw": {
+                            "language": "json"
+                          }
+                        }
+                      },
+                      "url": {
+                        "raw": "{{url}}/auth/login",
+                        "host": [
+                          "{{url}}"
+                        ],
+                        "path": [
+                          "auth",
+                          "login"
+                        ]
+                      }
+                    },
+                    "status": "OK",
+                    "code": 200,
+                    "_postman_previewlanguage": "json",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "cookie": [],
+                    "body": "{\n  \"message\": \"Login berhasil\",\n  \"data\": {\n    \"accessToken\": \"<RS256-jwt>\",\n    \"refreshToken\": \"<opaque-refresh-token>\",\n    \"refreshTokenId\": \"0190eaaa-0000-7000-8000-000000000002\",\n    \"sessionId\": \"0190eaaa-0000-7000-8000-000000000002\",\n    \"user\": {\n      \"userId\": \"0190eaaa-0000-7000-8000-000000000001\",\n      \"email\": \"gepeunsafe@gmail.com\",\n      \"emailVerified\": false,\n      \"status\": \"ACTIVE\",\n      \"roles\": [\n        \"USER\"\n      ]\n    }\n  }\n}"
+                  }
+                ]
+              },
+              "response": []
+            },
+            {
+              "name": "refresh",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Response has JSON body\", function () {",
+                      "    pm.expect(pm.response.text()).to.not.be.empty;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200 && pm.response.text()) {",
+                      "    const json = pm.response.json();",
+                      "",
+                      "    if (json.data.accessToken) {",
+                      "        pm.collectionVariables.set(\"access_token\", json.data.accessToken);",
+                      "    }",
+                      "",
+                      "    if (json.data.refreshToken) {",
+                      "        pm.collectionVariables.set(\"refresh_token\", json.data.refreshToken);",
+                      "    }",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"refreshToken\":\"{{refresh_token}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{url}}/auth/refresh",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "refresh"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "logout",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"refreshToken\":\"{{refresh_token}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{url}}/auth/logout",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "logout"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "logout other device",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{url}}/auth/sessions/{{refresh_token_id}}",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "sessions",
+                    "{{refresh_token_id}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "sessions",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Refresh-Token",
+                    "value": "{{refresh_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{url}}/auth/sessions",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "sessions"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "revoke all session",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Refresh-Token",
+                    "value": "{{refresh_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{url}}/auth/sessions",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "sessions"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "me",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/auth/me",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "me"
+                  ]
+                },
+                "response": [
+                  {
+                    "name": "me - UserDetailsDto (200)",
+                    "originalRequest": {
+                      "auth": {
+                        "type": "bearer",
+                        "bearer": [
+                          {
+                            "key": "token",
+                            "value": "{{access_token}}",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "method": "GET",
+                      "header": [],
+                      "url": {
+                        "raw": "{{url}}/auth/me",
+                        "host": [
+                          "{{url}}"
+                        ],
+                        "path": [
+                          "auth",
+                          "me"
+                        ]
+                      }
+                    },
+                    "status": "OK",
+                    "code": 200,
+                    "_postman_previewlanguage": "json",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "cookie": [],
+                    "body": "{\n  \"message\": \"Berhasil\",\n  \"data\": {\n    \"user\": {\n      \"userId\": \"0190eaaa-0000-7000-8000-000000000001\",\n      \"email\": \"gepeunsafe@gmail.com\",\n      \"emailVerified\": true,\n      \"status\": \"ACTIVE\",\n      \"roles\": [\n        \"USER\"\n      ]\n    },\n    \"profile\": {\n      \"userId\": \"0190eaaa-0000-7000-8000-000000000001\",\n      \"displayName\": \"Nama Pengguna\",\n      \"nickname\": \"gepe\",\n      \"avatarUrl\": null,\n      \"bio\": null,\n      \"dateOfBirth\": null,\n      \"gender\": null,\n      \"phone\": null,\n      \"location\": null,\n      \"timezone\": \"UTC\",\n      \"locale\": \"en\",\n      \"createdAt\": \"2026-08-15T00:00:00Z\",\n      \"updatedAt\": \"2026-08-15T00:00:00Z\"\n    }\n  }\n}"
+                  }
+                ]
+              },
+              "response": []
+            }
+          ]
         },
         {
-          "name": "jwks",
-          "request": {
-            "auth": {
-              "type": "noauth"
+          "name": "GoogleController",
+          "item": [
+            {
+              "name": "oauth",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{url}}/auth/oauth/google?redirect_url=http://localhost:3000/callback",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "oauth",
+                    "google"
+                  ],
+                  "query": [
+                    {
+                      "key": "redirect_url",
+                      "value": "http://localhost:3000/callback"
+                    }
+                  ]
+                }
+              },
+              "response": []
             },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "http://localhost:8080/.well-known/jwks.json",
-              "protocol": "http",
-              "host": [
-                "localhost"
-              ],
-              "port": "8080",
-              "path": [
-                ".well-known",
-                "jwks.json"
-              ]
+            {
+              "name": "exchange",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"code\": \"CrEhf4HSlV1An8aDr2zZjL8VjTi3ChgfilJS7QV8V0I\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{url}}/auth/oauth/exchange",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "oauth",
+                    "exchange"
+                  ]
+                }
+              },
+              "response": []
             }
-          },
-          "response": [
+          ]
+        },
+        {
+          "name": "JwksController",
+          "item": [
             {
               "name": "jwks",
-              "originalRequest": {
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
                 "method": "GET",
                 "header": [],
                 "url": {
@@ -378,521 +818,164 @@
                   ]
                 }
               },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": null,
-              "header": [
+              "response": [
                 {
-                  "key": "X-Request-Id",
-                  "value": "019fe67e-0370-7dca-a340-4152576f76c2"
-                },
-                {
-                  "key": "X-Content-Type-Options",
-                  "value": "nosniff"
-                },
-                {
-                  "key": "X-XSS-Protection",
-                  "value": "0"
-                },
-                {
-                  "key": "Cache-Control",
-                  "value": "no-cache, no-store, max-age=0, must-revalidate"
-                },
-                {
-                  "key": "Pragma",
-                  "value": "no-cache"
-                },
-                {
-                  "key": "Expires",
-                  "value": "0"
-                },
-                {
-                  "key": "X-Frame-Options",
-                  "value": "DENY"
-                },
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                },
-                {
-                  "key": "Content-Length",
-                  "value": "455"
-                },
-                {
-                  "key": "Date",
-                  "value": "Sun, 09 Aug 2026 12:27:25 GMT"
-                },
-                {
-                  "key": "Keep-Alive",
-                  "value": "timeout=60"
-                },
-                {
-                  "key": "Connection",
-                  "value": "keep-alive"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n    \"keys\": [\n        {\n            \"kty\": \"RSA\",\n            \"e\": \"AQAB\",\n            \"use\": \"sig\",\n            \"kid\": \"019fe660-a291-7196-9e79-e868c9744c4d\",\n            \"alg\": \"RS256\",\n            \"n\": \"9Ws38HZd97XO-_oJ8H6Z6QIDn8VD35qo5Jkdrqg0Fxw561uDf60TqEGd2ch6JPCvpMGSak-_w9-3yzfzfoEiG-mnc3HOUJxzKLmmkfhmQxILgzl_YTOlrOk2mPq1Gaq8rp5_gxt8LpFKo5U6V-J7pfDFpZpBrGshkFECarqE8hTZZ7J5Ia6SQPb1mCEpFdnWJ4MTPvyNC7Xm76TKeDEDr5w_EnXbdHI09P4gOqb8V8sUhuC45j6g0F_-_TkIc0GumBSnyEMpqnUo4qtuFA3HmJynKaQ7lLvNadPYhiYBHo_9pbuCKYTZDlOh0ULyoakpFoUNnYHgrsLWoQcGESGtTQ\"\n        }\n    ]\n}"
-            }
-          ]
-        },
-        {
-          "name": "register",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Response has JSON body\", function () {",
-                  "    pm.expect(pm.response.text()).to.not.be.empty;",
-                  "});",
-                  "",
-                  "if (pm.response.code === 200 && pm.response.text()) {",
-                  "    const json = pm.response.json();",
-                  "",
-                  "    if (json.data.accessToken) {",
-                  "        pm.collectionVariables.set(\"access_token\", json.data.accessToken);",
-                  "    }",
-                  "",
-                  "    if (json.data.refreshToken) {",
-                  "        pm.collectionVariables.set(\"refresh_token\", json.data.refreshToken);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "",
-                "value": "",
-                "type": "text",
-                "disabled": true
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"email\": \"gepeunsafe@gmail.com\",\n    \"password\": \"password\",\n    \"displayName\": \"Nama Pengguna\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{url}}/auth/register",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "login",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Response has JSON body\", function () {",
-                  "    pm.expect(pm.response.text()).to.not.be.empty;",
-                  "});",
-                  "",
-                  "if (pm.response.code === 200 && pm.response.text()) {",
-                  "    const json = pm.response.json();",
-                  "",
-                  "    if (json.data.accessToken) {",
-                  "        pm.collectionVariables.set(\"access_token\", json.data.accessToken);",
-                  "    }",
-                  "",
-                  "    if (json.data.refreshToken) {",
-                  "        pm.collectionVariables.set(\"refresh_token\", json.data.refreshToken);",
-                  "    }",
-                  "",
-                  "    if (json.data.refreshTokenId){",
-                  "        pm.collectionVariables.set(\"refresh_token_id\", json.data.refreshTokenId);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  ""
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "noauth"
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"email\": \"gepeunsafe@gmail.com\",\n    \"password\": \"password\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{url}}/auth/login",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "response": [
-              {
-                "name": "login - TokenResponse (200)",
-                "originalRequest": {
-                  "auth": {
-                    "type": "noauth"
-                  },
-                  "method": "POST",
-                  "header": [],
-                  "body": {
-                    "mode": "raw",
-                    "raw": "{\n    \"email\": \"gepeunsafe@gmail.com\",\n    \"password\": \"password\"\n}",
-                    "options": {
-                      "raw": {
-                        "language": "json"
-                      }
+                  "name": "jwks",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "http://localhost:8080/.well-known/jwks.json",
+                      "protocol": "http",
+                      "host": [
+                        "localhost"
+                      ],
+                      "port": "8080",
+                      "path": [
+                        ".well-known",
+                        "jwks.json"
+                      ]
                     }
                   },
-                  "url": {
-                    "raw": "{{url}}/auth/login",
-                    "host": [
-                      "{{url}}"
-                    ],
-                    "path": [
-                      "auth",
-                      "login"
-                    ]
-                  }
-                },
-                "status": "OK",
-                "code": 200,
-                "_postman_previewlanguage": "json",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "cookie": [],
-                "body": "{\n  \"message\": \"Login berhasil\",\n  \"data\": {\n    \"accessToken\": \"<RS256-jwt>\",\n    \"refreshToken\": \"<opaque-refresh-token>\",\n    \"refreshTokenId\": \"0190eaaa-0000-7000-8000-000000000002\",\n    \"sessionId\": \"0190eaaa-0000-7000-8000-000000000002\",\n    \"user\": {\n      \"userId\": \"0190eaaa-0000-7000-8000-000000000001\",\n      \"email\": \"gepeunsafe@gmail.com\",\n      \"emailVerified\": false,\n      \"status\": \"ACTIVE\",\n      \"roles\": [\n        \"USER\"\n      ]\n    }\n  }\n}"
-              }
-            ]
-          },
-          "response": []
-        },
-        {
-          "name": "refresh",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Response has JSON body\", function () {",
-                  "    pm.expect(pm.response.text()).to.not.be.empty;",
-                  "});",
-                  "",
-                  "if (pm.response.code === 200 && pm.response.text()) {",
-                  "    const json = pm.response.json();",
-                  "",
-                  "    if (json.data.accessToken) {",
-                  "        pm.collectionVariables.set(\"access_token\", json.data.accessToken);",
-                  "    }",
-                  "",
-                  "    if (json.data.refreshToken) {",
-                  "        pm.collectionVariables.set(\"refresh_token\", json.data.refreshToken);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "noauth"
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"refreshToken\":\"{{refresh_token}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": null,
+                  "header": [
+                    {
+                      "key": "X-Request-Id",
+                      "value": "019fe67e-0370-7dca-a340-4152576f76c2"
+                    },
+                    {
+                      "key": "X-Content-Type-Options",
+                      "value": "nosniff"
+                    },
+                    {
+                      "key": "X-XSS-Protection",
+                      "value": "0"
+                    },
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-cache, no-store, max-age=0, must-revalidate"
+                    },
+                    {
+                      "key": "Pragma",
+                      "value": "no-cache"
+                    },
+                    {
+                      "key": "Expires",
+                      "value": "0"
+                    },
+                    {
+                      "key": "X-Frame-Options",
+                      "value": "DENY"
+                    },
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "key": "Content-Length",
+                      "value": "455"
+                    },
+                    {
+                      "key": "Date",
+                      "value": "Sun, 09 Aug 2026 12:27:25 GMT"
+                    },
+                    {
+                      "key": "Keep-Alive",
+                      "value": "timeout=60"
+                    },
+                    {
+                      "key": "Connection",
+                      "value": "keep-alive"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n    \"keys\": [\n        {\n            \"kty\": \"RSA\",\n            \"e\": \"AQAB\",\n            \"use\": \"sig\",\n            \"kid\": \"019fe660-a291-7196-9e79-e868c9744c4d\",\n            \"alg\": \"RS256\",\n            \"n\": \"9Ws38HZd97XO-_oJ8H6Z6QIDn8VD35qo5Jkdrqg0Fxw561uDf60TqEGd2ch6JPCvpMGSak-_w9-3yzfzfoEiG-mnc3HOUJxzKLmmkfhmQxILgzl_YTOlrOk2mPq1Gaq8rp5_gxt8LpFKo5U6V-J7pfDFpZpBrGshkFECarqE8hTZZ7J5Ia6SQPb1mCEpFdnWJ4MTPvyNC7Xm76TKeDEDr5w_EnXbdHI09P4gOqb8V8sUhuC45j6g0F_-_TkIc0GumBSnyEMpqnUo4qtuFA3HmJynKaQ7lLvNadPYhiYBHo_9pbuCKYTZDlOh0ULyoakpFoUNnYHgrsLWoQcGESGtTQ\"\n        }\n    ]\n}"
                 }
-              }
-            },
-            "url": {
-              "raw": "{{url}}/auth/refresh",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "refresh"
               ]
             }
-          },
-          "response": []
-        },
-        {
-          "name": "logout",
-          "request": {
-            "auth": {
-              "type": "noauth"
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"refreshToken\":\"{{refresh_token}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{url}}/auth/logout",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "logout"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "logout other device",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{url}}/auth/sessions/{{refresh_token_id}}",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "sessions",
-                "{{refresh_token_id}}"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "sessions",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [
-              {
-                "key": "X-Refresh-Token",
-                "value": "{{refresh_token}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{url}}/auth/sessions",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "sessions"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "revoke all session",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "X-Refresh-Token",
-                "value": "{{refresh_token}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{url}}/auth/sessions",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "sessions"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "me",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{url}}/auth/me",
-              "host": [
-                "{{url}}"
-              ],
-              "path": [
-                "auth",
-                "me"
-              ]
-            },
-            "response": [
-              {
-                "name": "me - UserDetailsDto (200)",
-                "originalRequest": {
-                  "auth": {
-                    "type": "bearer",
-                    "bearer": [
-                      {
-                        "key": "token",
-                        "value": "{{access_token}}",
-                        "type": "string"
-                      }
-                    ]
-                  },
-                  "method": "GET",
-                  "header": [],
-                  "url": {
-                    "raw": "{{url}}/auth/me",
-                    "host": [
-                      "{{url}}"
-                    ],
-                    "path": [
-                      "auth",
-                      "me"
-                    ]
-                  }
-                },
-                "status": "OK",
-                "code": 200,
-                "_postman_previewlanguage": "json",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "cookie": [],
-                "body": "{\n  \"message\": \"Berhasil\",\n  \"data\": {\n    \"user\": {\n      \"userId\": \"0190eaaa-0000-7000-8000-000000000001\",\n      \"email\": \"gepeunsafe@gmail.com\",\n      \"emailVerified\": true,\n      \"status\": \"ACTIVE\",\n      \"roles\": [\n        \"USER\"\n      ]\n    },\n    \"profile\": {\n      \"userId\": \"0190eaaa-0000-7000-8000-000000000001\",\n      \"displayName\": \"Nama Pengguna\",\n      \"nickname\": \"gepe\",\n      \"avatarUrl\": null,\n      \"bio\": null,\n      \"dateOfBirth\": null,\n      \"gender\": null,\n      \"phone\": null,\n      \"location\": null,\n      \"timezone\": \"UTC\",\n      \"locale\": \"en\",\n      \"createdAt\": \"2026-08-15T00:00:00Z\",\n      \"updatedAt\": \"2026-08-15T00:00:00Z\"\n    }\n  }\n}"
-              }
-            ]
-          },
-          "response": []
+          ]
         }
       ]
     },
     {
-      "name": "health",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "http://localhost:8080/actuator/health",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "actuator",
-            "health"
+      "name": "user",
+      "item": [
+        {
+          "name": "ProfileController",
+          "item": [
+            {
+              "name": "update profile",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"displayName\": \"Nama Pengguna\",\n    \"nickname\": \"gepe\",\n    \"bio\": \"Halo!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{url}}/users/me/profile",
+                  "host": [
+                    "{{url}}"
+                  ],
+                  "path": [
+                    "users",
+                    "me",
+                    "profile"
+                  ]
+                }
+              },
+              "response": []
+            }
           ]
         }
-      },
-      "response": []
+      ]
+    },
+    {
+      "name": "platform",
+      "item": [
+        {
+          "name": "health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/actuator/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
