@@ -1,0 +1,63 @@
+# Docker Compose untuk infrastruktur backend: PostgreSQL + Redis.
+#
+# Port & kredensial mengikuti backend/.env (Spring membaca .env ini):
+#   - Postgres: SPRING_DATASOURCE_URL  -> host port 5433, db "app"
+#               SPRING_DATASOURCE_USERNAME/PASSWORD -> root / root
+#   - Redis:    SPRING_DATA_REDIS_PORT -> 6380
+#               SPRING_DATA_REDIS_USERNAME/PASSWORD -> root / root
+#
+# Jalankan: docker compose up -d
+# (spring.docker.compose.enabled=false di application.yaml, jadi app
+#  tetap konek ke instance eksternal ini — compose hanya menyediakan infra-nya.)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: app-postgres
+    restart: unless-stopped
+    environment:
+      # db name diambil dari SPRING_DATASOURCE_URL (jdbc:postgresql://localhost:5433/app)
+      POSTGRES_DB: app
+      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME:-root}
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-root}
+    ports:
+      # host : container — port host mengikuti .env (SPRING_DATASOURCE_URL)
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SPRING_DATASOURCE_USERNAME:-root} -d app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: app-redis
+    restart: unless-stopped
+    # list form: string form ("redis-server ... on >root ...") dipotong oleh
+    # docker compose v5 di karakter ">", jadi ditulis eksplisit per-argumen.
+    command:
+      - redis-server
+      - --requirepass
+      - ${SPRING_DATA_REDIS_PASSWORD:-root}
+      - --user
+      - ${SPRING_DATA_REDIS_USERNAME:-root}
+      - on
+      - ">${SPRING_DATA_REDIS_PASSWORD:-root}"
+      - "~*"
+      - allcommands
+    ports:
+      # host : container — port host mengikuti .env (SPRING_DATA_REDIS_PORT)
+      - "${SPRING_DATA_REDIS_PORT:-6380}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${SPRING_DATA_REDIS_PASSWORD:-root} ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
