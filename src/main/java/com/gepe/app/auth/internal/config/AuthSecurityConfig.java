@@ -12,6 +12,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,6 +39,18 @@ class AuthSecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * Hierarki role: SUPER_ADMIN menurunkan semua hak ADMIN, ADMIN menurunkan OPERATION,
+     * OPERATION menurunkan USER. Dengan bean ini, {@code hasRole("ADMIN")} di matcher chain
+     * DAN {@code @PreAuthorize("hasRole('ADMIN')")} otomatis true untuk principal ber-role
+     * SUPER_ADMIN (Spring Security 7 auto-detect bean ini di method security & request auth).
+     */
+    @Bean
+    RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.fromHierarchy(
+                "ROLE_SUPER_ADMIN > ROLE_ADMIN > ROLE_OPERATION > ROLE_USER");
     }
 
     // ──────────────────────────────────────────────
