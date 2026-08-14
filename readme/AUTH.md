@@ -152,7 +152,7 @@ Route yang tidak cocok **chain 0‑4** → ditolak oleh `fallback` (return JSON 
 
 | Method | Path | Auth | Body/Params | Response |
 |--------|------|------|-------------|----------|
-| POST | `/api/v1/auth/register` | none | `{email, password}` | `TokenResponse` |
+| POST | `/api/v1/auth/register` | none | `{email, password, displayName?}` | `TokenResponse` |
 | POST | `/api/v1/auth/login` | none | `{email, password}` | `TokenResponse` |
 | POST | `/api/v1/auth/refresh` | none | `{refreshToken}` | `TokenResponse` |
 | POST | `/api/v1/auth/logout` | none | `{refreshToken}` | 200 |
@@ -241,9 +241,9 @@ AuthService.login()
 ```
 
 **Register:** mirip — buat `User` + `auth_identities` (provider=credentials), lalu panggil
-`user.api.ProfileService.initialize(userId, email, null, null)` — module user membuat baris profil
+`user.api.ProfileService.initialize(userId, email, displayName, null)` — module user membuat baris profil
 (dan publish event `UserRegistered` dari `user.api`), satu transaksi dengan registrasi.
-Akun baru selalu berstatus `ACTIVE`.
+`displayName` opsional dari form register (blank → null); akun baru selalu berstatus `ACTIVE`.
 
 **Status akun & cache `/auth/me`:**
 - Hanya `ACTIVE` yang boleh login (credentials/Google OAuth) **dan** refresh — akun

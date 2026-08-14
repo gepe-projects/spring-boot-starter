@@ -1,5 +1,6 @@
 package com.gepe.app.auth.internal.service;
 
+import com.gepe.app.auth.api.RoleType;
 import com.gepe.app.auth.api.UserDto;
 import com.gepe.app.auth.api.UserStatus;
 import com.gepe.app.auth.internal.crypto.PasswordHasher;
@@ -8,6 +9,7 @@ import com.gepe.app.auth.internal.dto.TokenResponse;
 import com.gepe.app.auth.internal.dto.TokenWithId;
 import com.gepe.app.auth.internal.dto.UserDetailsDto;
 import com.gepe.app.auth.internal.entity.AuthIdentity;
+import com.gepe.app.auth.internal.entity.Role;
 import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.auth.internal.jwt.JwtService;
@@ -37,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -199,6 +202,40 @@ class AuthServiceTest {
         assertThat(user.getStatusChangedAt()).isNotNull();
         verify(userRepository).save(user);
         verify(userDetailsCache).evict(userId);
+    }
+
+    @Test
+    void registerInitializesProfileWithDisplayName() {
+        String email = "a@b.com";
+        when(userRepository.existsByEmail(email)).thenReturn(false);
+        when(roleRepository.getReferenceById(RoleType.USER.name())).thenReturn(mock(Role.class));
+        when(passwordHasher.hash("secret1234")).thenReturn("hash");
+        stubTokenIssuance();
+
+        service.register(email, "secret1234", "Nama User", "ua", "1.2.3.4");
+
+        verify(profileService).initialize(any(), eq(email), eq("Nama User"), isNull());
+    }
+
+    @Test
+    void registerNormalizesBlankDisplayNameToNull() {
+        String email = "a@b.com";
+        when(userRepository.existsByEmail(email)).thenReturn(false);
+        when(roleRepository.getReferenceById(RoleType.USER.name())).thenReturn(mock(Role.class));
+        when(passwordHasher.hash("secret1234")).thenReturn("hash");
+        stubTokenIssuance();
+
+        service.register(email, "secret1234", "   ", "ua", "1.2.3.4");
+
+        verify(profileService).initialize(any(), eq(email), isNull(), isNull());
+    }
+
+    private void stubTokenIssuance() {
+        SignedJWT signed = mock(SignedJWT.class);
+        when(signed.serialize()).thenReturn("jwt");
+        when(jwtService.issueAccessToken(any(), any(), any())).thenReturn(signed);
+        when(refreshTokenService.issue(any(), any(), any(), any()))
+                .thenReturn(new TokenWithId(Uuidv7.generate(), "rt"));
     }
 
     private void mockCredentialsIdentity(UUID userId, String email) {

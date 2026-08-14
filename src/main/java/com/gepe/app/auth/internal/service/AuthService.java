@@ -113,7 +113,8 @@ public class AuthService {
     }
 
     // ── register via credentials (email + password) ──
-    public TokenResponse register(String email, String password, String deviceInfo, String ipAddress) {
+    public TokenResponse register(String email, String password, String displayName,
+                                  String deviceInfo, String ipAddress) {
         loginRateLimiter.assertAllowed(email);
 
         if (userRepository.existsByEmail(email)) {
@@ -130,7 +131,8 @@ public class AuthService {
                 passwordHasher.hash(password)));
 
         loginRateLimiter.onSuccess(email);
-        profileService.initialize(user.getId(), user.getEmail(), null, null);
+        // displayName dari form register → profil tidak lahir kosong ("" / blank = null)
+        profileService.initialize(user.getId(), user.getEmail(), blankToNull(displayName), null);
         return issueTokens(user, deviceInfo, ipAddress);
     }
 
@@ -222,5 +224,10 @@ public class AuthService {
     private UserDto toUserDto(User user) {
         return new UserDto(user.getId(), user.getEmail(),
                 user.getEmailVerifiedAt() != null, user.getStatus(), RoleResolver.effectiveRoles(user));
+    }
+
+    /** String kosong/blank = null (profil tidak menyimpan string kosong). */
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

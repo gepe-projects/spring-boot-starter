@@ -32,7 +32,7 @@ class AuthController {
     @PostMapping("/register")
     ResponseEntity<ApiResponse<TokenResponse>> register(@Valid @RequestBody RegisterRequest request,
                                                         HttpServletRequest http) {
-        TokenResponse tokens = authService.register(request.email(), request.password(),
+        TokenResponse tokens = authService.register(request.email(), request.password(), request.displayName(),
                 http.getHeader("User-Agent"), http.getRemoteAddr());
         return ResponseEntity.ok(new ApiResponse<>(messageHelper.get("auth.login_success"), tokens));
     }
