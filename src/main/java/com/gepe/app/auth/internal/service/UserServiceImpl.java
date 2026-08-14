@@ -35,6 +35,6 @@ public class UserServiceImpl implements UserService {
 
     private UserDto toUserDto(User u) {
         return new UserDto(u.getId(), u.getEmail(), u.getEmailVerifiedAt() != null,
-                RoleResolver.effectiveRoles(u));
+                u.getStatus(), RoleResolver.effectiveRoles(u));
     }
 }

@@ -1,6 +1,7 @@
 package com.gepe.app.auth.internal.delivery.http;
 
 import com.gepe.app.auth.api.UserDto;
+import com.gepe.app.auth.api.UserStatus;
 import com.gepe.app.auth.internal.dto.TokenResponse;
 import com.gepe.app.auth.internal.service.AuthService;
 import com.gepe.app.auth.internal.service.RefreshTokenService;
@@ -45,7 +46,7 @@ class AuthControllerVersioningTest {
         when(authService.login(eq("a@b.com"), eq("password123"), any(), any()))
                 .thenReturn(new TokenResponse("access-token", "refresh-token",
                         Uuidv7.generate(), Uuidv7.generate(),
-                        new UserDto(Uuidv7.generate(), "a@b.com", false, List.of("USER"))));
+                        new UserDto(Uuidv7.generate(), "a@b.com", false, UserStatus.ACTIVE, List.of("USER"))));
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

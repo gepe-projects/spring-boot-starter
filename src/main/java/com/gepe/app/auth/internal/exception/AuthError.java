@@ -10,6 +10,10 @@ public enum AuthError implements ErrorCode {
     // ── credentials ──
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "auth.invalid_credentials"),
 
+    // ── status akun ──
+    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN, "auth.account_suspended"),
+    ACCOUNT_DISABLED(HttpStatus.FORBIDDEN, "auth.account_disabled"),
+
     // ── access token ──
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "auth.token_expired"),
     TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "auth.token_invalid"),
@@ -29,6 +33,7 @@ public enum AuthError implements ErrorCode {
     EMAIL_ALREADY_LINKED(HttpStatus.CONFLICT, "auth.email_already_linked"),
     IDENTITY_EXISTS(HttpStatus.CONFLICT, "auth.identity_exists"),
     IDENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "auth.identity_not_found"),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "auth.user_not_found"),
 
     // ── key management ──
     KEY_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "auth.key_generation_failed"),

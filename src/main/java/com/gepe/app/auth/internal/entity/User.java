@@ -1,8 +1,11 @@
 package com.gepe.app.auth.internal.entity;
 
+import com.gepe.app.auth.api.UserStatus;
 import com.gepe.app.platform.support.Uuidv7;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -32,6 +35,13 @@ public class User {
     @Column(name = "email_verified_at")
     private Instant emailVerifiedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private UserStatus status = UserStatus.ACTIVE;
+
+    @Column(name = "status_changed_at")
+    private Instant statusChangedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -56,10 +66,20 @@ public class User {
         if (id == null) id = Uuidv7.generate();
         if (createdAt == null) createdAt = Instant.now();
         if (updatedAt == null) updatedAt = Instant.now();
+        if (statusChangedAt == null) statusChangedAt = createdAt;
     }
 
     public void markEmailVerified() {
         if (emailVerifiedAt == null) emailVerifiedAt = Instant.now();
+    }
+
+    /** Ganti status akun; catat {@code statusChangedAt} hanya bila status benar-benar berubah. */
+    public void changeStatus(UserStatus newStatus) {
+        if (newStatus == null || newStatus == status) {
+            return;
+        }
+        this.status = newStatus;
+        this.statusChangedAt = Instant.now();
     }
 
     public void addRole(Role role) {

@@ -19,6 +19,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+      # Catatan: schema "user" (module user) adalah reserved word Postgres. Quoting-nya
+      # ditangani di entity (@Table(schema = "`user`") — backtick Hibernate), karena setting
+      # hibernate.auto_quote_keyword sudah dihapus dari Hibernate 7 dan tidak berpengaruh.
   flyway:
     locations:
       - classpath:db/migration
@@ -82,6 +85,9 @@ app:
     issuer: ${APP_SECURITY_ISSUER:http://localhost:8080}
     access-token-ttl: ${APP_SECURITY_ACCESS_TOKEN_TTL:15m}
     refresh-token-ttl: ${APP_SECURITY_REFRESH_TOKEN_TTL:30d}
+    # Cache komposit GET /api/v1/auth/me (UserDto + profile) di Redis — TTL safety net,
+    # evict eksplisit terjadi di semua jalur mutasi (profil, status, verifikasi email)
+    user-details-cache-ttl: ${APP_SECURITY_USER_DETAILS_CACHE_TTL:10m}
     # Signing key - tiap 3 bulan (Jan, Apr, Jul, Okt), jam 03:00
     signing-key-rotation-cron: "0 0 3 1 1,4,7,10 ?"
     # Master key - tiap 6 bulan (Jan, Jul), jam 04:00

@@ -47,9 +47,9 @@ Client (Web / Mobile / SPA)
 com.gepe.app.auth/
 ├── api/                                  ← Public contract (inter‑module)
 │   ├── UserService.java                   ←  sync interface
-│   ├── UserDto.java                      ←  DTO data user (boundary, incl. roles)
-│   ├── UserAuthenticated.java            ←  event (login)
-│   └── UserRegistered.java              ←  event (new user)
+│   ├── UserDto.java                      ←  DTO data user (boundary, incl. roles + status)
+│   ├── UserStatus.java                   ←  enum status akun (ACTIVE|SUSPENDED|DISABLED)
+│   └── UserAuthenticated.java            ←  event (login)
 └── internal/                             ← Implementation detail
     ├── config/
     │   └── AuthSecurityConfig.java       ← 6 SecurityFilterChain
@@ -59,7 +59,7 @@ com.gepe.app.auth/
     │   ├── PasswordHasher.java           ← BCrypt wrapper
     │   └── RsaKeyService.java            ← RSA 2048 key generation + encrypt/decrypt
     ├── delivery/http/
-    │   ├── AdminController.java          ← POST /admin/keys/rotate
+    │   ├── AdminController.java          ← POST /admin/keys/rotate + PATCH /admin/users/{id}/status
     │   ├── AuthController.java           ← credential login/register/sessions
     │   ├── GoogleController.java         ← OAuth begin / callback / exchange
     │   └── JwksController.java           ← GET /.well-known/jwks.json
@@ -67,6 +67,7 @@ com.gepe.app.auth/
     │   ├── ExchangeRequest.java
     │   ├── GoogleAuthStartResponse.java
     │   ├── LoginRequest.java
+│   ├── UserDetailsDto.java             ← GET /auth/me: UserDto (auth) + profil (module user)
     │   ├── LogoutRequest.java
     │   ├── RefreshRequest.java
     │   ├── RotatedKeyResponse.java
@@ -77,13 +78,14 @@ com.gepe.app.auth/
     │   ├── SigningKeyData.java
     │   ├── SigningKeyStatus.java
     │   ├── TokenResponse.java
-    │   └── TokenWithId.java
+    │   ├── TokenWithId.java
+    │   └── UpdateUserStatusRequest.java
     ├── entity/
     │   ├── AuthIdentity.java             ← satu baris = satu metode login
     │   ├── RefreshToken.java
     │   ├── Role.java                     ← enum ADMIN, USER
     │   ├── SigningKey.java
-    │   └── User.java
+    │   └── User.java                     ← incl. status (UserStatus) + status_changed_at
     ├── exception/
     │   └── AuthError.java               ← enum implementing ErrorCode
     ├── job/
@@ -100,6 +102,8 @@ com.gepe.app.auth/
     │   ├── JwtConfig.java
     │   ├── JwtProperties.java            ← @ConfigurationProperties
     │   └── JwtService.java               ← sign + issue RS256 JWT
+    ├── listener/
+    │   └── ProfileUpdateCacheEvictor.java ← evict cache /me saat ProfileUpdated (dari module user)
     ├── oauth/
     │   ├── GoogleOAuthService.java       ← PKCE + token exchange + id_token validation
     │   ├── OAuthConfig.java             ← @ConfigurationProperties + Google JwtDecoder
@@ -112,7 +116,8 @@ com.gepe.app.auth/
     └── service/
         ├── RoleResolver.java             ← default role USER + map roles → List<String>
         ├── UserServiceImpl.java          ← implements api/UserService
-        ├── AuthService.java              ← use‑case orchestration + event publishing
+        ├── AuthService.java              ← use‑case orchestration + event publishing + status gate
+        ├── UserDetailsCache.java         ← cache Redis komposit GET /auth/me (read-through + evict)
         ├── RefreshTokenService.java      ← opaque token issue/rotate/revoke
         ├── SessionService.java           ← session list + revoke (cursor pagination)
         ├── SigningKeyRotationService.java
@@ -152,7 +157,7 @@ Route yang tidak cocok **chain 0‑4** → ditolak oleh `fallback` (return JSON 
 | POST | `/api/v1/auth/refresh` | none | `{refreshToken}` | `TokenResponse` |
 | POST | `/api/v1/auth/logout` | none | `{refreshToken}` | 200 |
 | POST | `/api/v1/auth/password` | Bearer | `{newPassword}` | 200 |
-| GET  | `/api/v1/auth/me` | Bearer | — | `AuthenticatedUser` |
+| GET  | `/api/v1/auth/me` | Bearer | — | `UserDetailsDto` (`user` = UserDto auth + `profile` dari module user) |
 | GET  | `/api/v1/auth/sessions` | Bearer | `X-Refresh-Token`, `cursor`, `limit` | `SessionPage` |
 | DELETE | `/api/v1/auth/sessions/{id}` | Bearer | `X-Refresh-Token` | 200 |
 | DELETE | `/api/v1/auth/sessions` | Bearer | `X-Refresh-Token` (wajib) | 200 (revoke all except current) |
@@ -169,9 +174,10 @@ Route yang tidak cocok **chain 0‑4** → ditolak oleh `fallback` (return JSON 
 
 ### 4.3 Admin (`AdminController`)
 
-| Method | Path | Auth | Response |
-|--------|------|------|----------|
-| POST | `/api/v1/admin/keys/rotate` | Bearer `ADMIN` | `RotatedKeyResponse` |
+| Method | Path | Auth | Body | Response |
+|--------|------|------|------|----------|
+| POST | `/api/v1/admin/keys/rotate` | Bearer `ADMIN` | — | `RotatedKeyResponse` |
+| PATCH | `/api/v1/admin/users/{userId}/status` | Bearer `ADMIN` | `{status: "ACTIVE"\|"SUSPENDED"\|"DISABLED"}` | 200 (evict cache /me user tsb) |
 
 ### 4.4 JWKS (`JwksController`)
 
@@ -191,12 +197,27 @@ Route yang tidak cocok **chain 0‑4** → ditolak oleh `fallback` (return JSON 
     "userId": "<UUID v7>",
     "email": "<email>",
     "emailVerified": true,
+    "status": "ACTIVE",
     "roles": ["USER", "ADMIN"]
   }
 }
 ```
 
 `user` = `auth/api/UserDto` (boundary DTO, aman dipakai modul lain). Auth/authz sendiri ditangani Spring Security via claim `roles` di JWT (`JwtAuthConverter` → `ROLE_*`), bukan dari field `user` ini.
+`status` = `UserStatus` (`ACTIVE` | `SUSPENDED` | `DISABLED`) — hanya `ACTIVE` yang boleh autentikasi.
+
+### 4.6 User Profile (module `user`)
+
+Data profil (nama, nickname, avatar, bio, dll) dipegang **module `user`** — schema `user`, tabel `profile`
+(1:1 per `auth.users.id`, tanpa FK cross-schema). Arah dependensi: **auth → user** (satu arah, via `user.api.ProfileService`)
+sehingga tidak ada cycle module; event `UserRegistered` dipublish oleh module `user` (bukan auth).
+
+| Method | Path | Auth | Body | Response |
+|--------|------|------|-------------|----------|
+| PATCH | `/api/v1/users/me/profile` | Bearer | `UpdateProfileRequest` | `ApiResponse<UserProfileDto>` |
+
+Semantik PATCH: field `null` = tidak diubah; string kosong = hapus; nickname duplikat → `409 user.nickname_taken`.
+Pembacaan profil digabung di `GET /api/v1/auth/me` (field `profile` pada `UserDetailsDto`).
 
 ---
 
@@ -209,6 +230,9 @@ POST /api/v1/auth/login {email, password}
 AuthService.login()
     ├── auth_identities WHERE provider='credentials' AND provider_id=email
     ├── BCrypt.verify(password, hash)
+    ├── status gate: hanya status=ACTIVE yang lanjut; SUSPENDED → 403 auth.account_suspended,
+    │                DISABLED → 403 auth.account_disabled (kredensial tetap diverifikasi dulu,
+    │                supaya status akun tidak bocor ke attacker tanpa password yang benar)
     ├── RoleResolver.effectiveRoles(user) → default USER
     ├── JwtService.issueAccessToken(userId, email, roles)  → RS256, TTL 15m
     ├── RefreshTokenService.issue(userId, device, ip, 30d)
@@ -216,13 +240,28 @@ AuthService.login()
     └── return TokenResponse(accessToken, refreshToken, ..., user=UserDto)
 ```
 
-**Register:** mirip — buat `User` + `auth_identities` (provider=credentials), publish `UserRegistered`.
+**Register:** mirip — buat `User` + `auth_identities` (provider=credentials), lalu panggil
+`user.api.ProfileService.initialize(userId, email, null, null)` — module user membuat baris profil
+(dan publish event `UserRegistered` dari `user.api`), satu transaksi dengan registrasi.
+Akun baru selalu berstatus `ACTIVE`.
+
+**Status akun & cache `/auth/me`:**
+- Hanya `ACTIVE` yang boleh login (credentials/Google OAuth) **dan** refresh — akun
+  `SUSPENDED`/`DISABLED` tidak bisa memulai sesi baru maupun memperpanjang sesi lama
+  (AT yang sudah terbit tetap valid sampai expiry ≤15m; tidak ada deny-list AT).
+- `GET /auth/me` di-cache di Redis (`cache:user-details:{userId}`, TTL default 10m,
+  `app.security.user-details-cache-ttl`) — shared cache aman multi-instance. Evict eksplisit:
+  - profil di-update → module user publish `ProfileUpdated` → listener auth evict;
+  - status akun diganti (admin) → evict;
+  - email terverifikasi via Google login (markEmailVerified) → evict.
+- Gagal serialize/deserialize cache = miss (fallback DB), request tidak pernah gagal.
 
 **Refresh:**
 - Client mengirim `refreshToken` (opaque, 30d)
 - Server: hash(sha256) → cari di `refresh_tokens`
 - Rotasi: token lama di-revoke, token baru diterbitkan
 - **Reuse detection:** token yang sudah revoked dipakai lagi → `auth.refresh_token_reused` + seluruh sesi pengguna dicabut
+- Akun non-ACTIVE ditolak di sini juga (exception → satu transaksi rollback, rotasi batal).
 
 **Logout:** revoke refresh token session (AT tetap valid stateless sampai expiry — tidak ada deny-list)
 
@@ -321,9 +360,11 @@ Setelah menerima `code` dari Google (langkah ⑤), backend melakukan:
 3. **Belum ada**:
    - Cari `users` by email.  
      - **Tidak ada** → buat `User` baru + `AuthIdentity(google)`.  
-       Publish `UserRegistered`.  
+       Panggil `ProfileService.initialize(userId, email, name, picture)` — profil ter-seed dari
+       klaim `name`/`picture` id_token Google; module user publish `UserRegistered`.  
      - **Ada** → `markEmailVerified()` + tambah `AuthIdentity(google)` (linking).  
-       Publish **tidak** `UserRegistered` (user sudah ada, hanya mengikat identity baru).
+       **Tidak** publish `UserRegistered` dan profil **tidak** di-seed ulang (user sudah ada,
+       hanya mengikat identity baru).
 4. Issue `TokenResponse` + publish `UserAuthenticated`.
 
 > ⚠️  **PRE-ACCOUNT HIJACKING RISK** — Alur daftar credential **tidak** melakukan verifikasi
@@ -363,7 +404,7 @@ Semua tabel di schema `auth`. **Tidak ada foreign key cross-schema.**
 
 | Tabel | Kolom utama | Note |
 |-------|-------------|------|
-| `users` | `id`, `email` (unique), `email_verified_at`, `created_at`, `updated_at` | 1 user bisa punya banyak identity (multi‑provider) |
+| `users` | `id`, `email` (unique), `email_verified_at`, `status`, `status_changed_at`, `created_at`, `updated_at` | 1 user bisa punya banyak identity (multi‑provider); `status` = `ACTIVE`/`SUSPENDED`/`DISABLED` (CHECK constraint) |
 | `auth_identities` | `id`, `user_id`, `provider`, `provider_id`, `email`, `password_hash`, `created_at` | `provider` = `'credentials'` atau `'google'`; `provider_id` untuk credentials = email, untuk google = Google sub |
 | `signing_keys` | `kid`, `public_key`, `private_key_cipher`, `enc_key_id`, `algorithm`, `status`, `not_before`, `not_after` | partial unique index: **hanya 1 `ACTIVE`** |
 | `refresh_tokens` | `id`, `session_id`, `user_id`, `token_hash`, `device_info`, `ip_address`, `status`, `expires_at`, `issued_at` | `status` = `ACTIVE`/`REVOKED`; composite index `(user_id, issued_at DESC, id DESC)` untuk cursor pagination |
@@ -379,6 +420,8 @@ V3__auth_signing_keys.sql          — auth schema + signing_keys
 V4__auth_users.sql                 — users + auth_identities
 V5__auth_refresh_tokens.sql        — refresh_tokens + composite index
 V6__auth_roles.sql                 — roles + user_roles
+V7__user_profile.sql               — module user: schema "user" + tabel profile
+V8__auth_user_status.sql           — auth: kolom status + status_changed_at + CHECK constraint
 ```
 
 ---
@@ -402,6 +445,9 @@ File: `src/main/resources/i18n/auth/messages.properties` dan `messages_id.proper
 | Key | English | Indonesian |
 |-----|---------|------------|
 | `auth.invalid_credentials` | Invalid email or password | Email atau password tidak valid |
+| `auth.account_suspended` | Account suspended. Contact support for more information. | Akun ditangguhkan. Hubungi dukungan untuk informasi lebih lanjut. |
+| `auth.account_disabled` | Account disabled. Contact support for more information. | Akun dinonaktifkan. Hubungi dukungan untuk informasi lebih lanjut. |
+| `auth.user_status_updated` | User status updated successfully | Status user berhasil diperbarui |
 | `auth.token_expired` | Access token has expired | Access token telah kedaluwarsa |
 | `auth.token_invalid` | Invalid access token | Access token tidak valid |
 | `auth.token_revoked` | Access token has been revoked | Access token telah dicabut |
@@ -450,6 +496,7 @@ File: `src/main/resources/i18n/auth/messages.properties` dan `messages_id.proper
 | `APP_SECURITY_ISSUER` | Tidak | `http://localhost:8080` | Issuer claim di JWT |
 | `APP_SECURITY_ACCESS_TOKEN_TTL` | Tidak | `15m` | Access token time‑to‑live |
 | `APP_SECURITY_REFRESH_TOKEN_TTL` | Tidak | `30d` | Refresh token time‑to‑live |
+| `APP_SECURITY_USER_DETAILS_CACHE_TTL` | Tidak | `10m` | TTL cache Redis GET /auth/me (Duration) |
 | `SPRING_DATASOURCE_*` | Ya | `jdbc:postgresql://localhost:5432/app` | PostgreSQL connection |
 | `SPRING_DATA_REDIS_*` | Ya | `localhost:6379` | Redis connection |
 
@@ -499,6 +546,8 @@ Karena arsitektur sudah modular dengan `auth_identities`:
 | **Redirect whitelist** | Origin‑based (`URI.getHost()+getPort`) — bukan `startsWith` |
 | **One‑time code** | 32 byte random, single‑use (dihapus saat exchange), TTL 5 menit |
 | **No‑deny‑list AT** | Access token **tidak** bisa di‑revoke sebelum expiry; trade‑off terima — perpendek `access‑token‑ttl` bila perlu |
+| **Account status gate** | Login credentials/OAuth/refresh hanya untuk `status=ACTIVE`; `SUSPENDED`/`DISABLED` → 403 (kredensial dicek dulu, anti-enumeration) |
+| **Cache /me** | Redis shared (multi-instance), TTL + evict eksplisit (profil/status/email-verified) |
 | **Master key** | Dari env, tidak pernah di‑commit ke git |
 | **Private key signing** | Terenkripsi (AES‑GCM) di DB, tidak plaintext |
 | **No cross‑schema FK** | Data antar modul direferensi via ID, tidak via constraint database |
