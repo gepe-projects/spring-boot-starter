@@ -67,9 +67,9 @@ class AuthController {
     }
 
     @GetMapping("/me")
-    ResponseEntity<ApiResponse<AuthenticatedUser>> me() {
+    ResponseEntity<ApiResponse<UserDetailsDto>> me() {
         AuthenticatedUser user = RequestContext.getCurrentUser();
-        return ResponseEntity.ok(new ApiResponse<>(messageHelper.get("common.success"), user));
+        return ResponseEntity.ok(new ApiResponse<>(messageHelper.get("common.success"), authService.me(user)));
     }
 
     @GetMapping("/sessions")

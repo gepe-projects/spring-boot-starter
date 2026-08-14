@@ -133,9 +133,11 @@ public class GoogleOAuthService {
 
         String sub = jwt.getSubject();
         String email = jwt.getClaimAsString("email");
+        String name = jwt.getClaimAsString("name");
+        String picture = jwt.getClaimAsString("picture");
 
         TokenResponse tokens = authService.googleLogin(
-                sub, email, stateData.deviceInfo(), stateData.ipAddress());
+                sub, email, name, picture, stateData.deviceInfo(), stateData.ipAddress());
 
         String oneTimeCode = generateOneTimeCode();
         String otcData;
