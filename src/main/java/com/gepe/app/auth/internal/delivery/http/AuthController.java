@@ -7,6 +7,7 @@ import com.gepe.app.auth.internal.service.RefreshTokenService;
 import com.gepe.app.auth.internal.service.SessionService;
 import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.exception.ServiceException;
+import com.gepe.app.platform.pagination.CursorPage;
 import com.gepe.app.platform.web.api.ApiVersions;
 import com.gepe.app.platform.web.context.RequestContext;
 import com.gepe.app.platform.web.response.ApiResponse;
@@ -73,7 +74,7 @@ class AuthController {
     }
 
     @GetMapping("/sessions")
-    ResponseEntity<ApiResponse<SessionPage>> sessions(
+    ResponseEntity<ApiResponse<CursorPage<SessionInfo>>> sessions(
             @RequestHeader(value = "X-Refresh-Token", required = false) String currentRefreshToken,
             @RequestParam(value = "cursor", required = false) String cursor,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {

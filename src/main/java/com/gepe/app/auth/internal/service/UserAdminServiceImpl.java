@@ -11,17 +11,16 @@ import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.auth.internal.repository.RefreshTokenRepository;
 import com.gepe.app.auth.internal.repository.RoleRepository;
 import com.gepe.app.auth.internal.repository.UserRepository;
-import com.gepe.app.platform.exception.PlatformError;
 import com.gepe.app.platform.exception.ServiceException;
-import com.gepe.app.platform.pagination.CursorEncoder;
+import com.gepe.app.platform.pagination.CursorBounds;
 import com.gepe.app.platform.pagination.CursorPage;
+import com.gepe.app.platform.pagination.CursorPages;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +49,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserAdminServiceImpl implements UserAdminService {
 
     private static final int MAX_PAGE_SIZE = 50;
-    private static final UUID MAX_UUID = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -62,26 +60,12 @@ public class UserAdminServiceImpl implements UserAdminService {
     public CursorPage<UserDto> listUsers(String cursor, int limit, UserStatus status) {
         int pageSize = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
 
-        PageBounds bounds = resolveBounds(cursor);
-        PageRequest pageable = PageRequest.of(0, pageSize + 1);
-
+        CursorBounds<UUID> bounds = CursorBounds.resolve(cursor, UUID.class);
         List<User> rows = status != null
-                ? userRepository.findAdminPageByStatus(status, bounds.afterCreatedAt(), bounds.afterId(), pageable)
-                : userRepository.findAdminPage(bounds.afterCreatedAt(), bounds.afterId(), pageable);
+                ? userRepository.findAdminPageByStatus(status, bounds.sortValue(), bounds.id(), CursorPages.pageable(pageSize))
+                : userRepository.findAdminPage(bounds.sortValue(), bounds.id(), CursorPages.pageable(pageSize));
 
-        boolean hasMore = rows.size() > pageSize;
-        List<User> page = hasMore ? rows.subList(0, pageSize) : rows;
-
-        List<UserDto> items = page.stream().map(this::toUserDto).toList();
-
-        String nextCursor = null;
-        if (hasMore) {
-            User last = page.get(page.size() - 1);
-            nextCursor = CursorEncoder.encode(
-                    last.getId().toString(),
-                    String.valueOf(last.getCreatedAt().toEpochMilli()));
-        }
-        return new CursorPage<>(items, nextCursor, hasMore);
+        return CursorPages.page(rows, pageSize, User::getCreatedAt, User::getId, this::toUserDto);
     }
 
     @Override
@@ -190,23 +174,6 @@ public class UserAdminServiceImpl implements UserAdminService {
         }
     }
 
-    private PageBounds resolveBounds(String cursor) {
-        if (cursor == null || cursor.isBlank()) {
-            return new PageBounds(Instant.now(), MAX_UUID);
-        }
-        CursorEncoder.DecodedCursor decoded = CursorEncoder.decode(cursor);
-        if (decoded == null || decoded.sortValues().length != 1) {
-            throw new ServiceException(PlatformError.INVALID_CURSOR);
-        }
-        try {
-            return new PageBounds(
-                    Instant.ofEpochMilli(Long.parseLong(decoded.sortValues()[0])),
-                    UUID.fromString(decoded.id()));
-        } catch (RuntimeException e) {
-            throw new ServiceException(PlatformError.INVALID_CURSOR);
-        }
-    }
-
     private UserDto toUserDto(User user) {
         return new UserDto(user.getId(), user.getEmail(),
                 user.getEmailVerifiedAt() != null, user.getStatus(), RoleResolver.effectiveRoles(user));
@@ -240,6 +207,4 @@ public class UserAdminServiceImpl implements UserAdminService {
             case USER -> 0;
         };
     }
-
-    private record PageBounds(Instant afterCreatedAt, UUID afterId) {}
 }

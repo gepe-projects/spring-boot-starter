@@ -3,16 +3,13 @@ package com.gepe.app.admin.internal.service;
 import com.gepe.app.admin.internal.dto.AdminAuditLogDto;
 import com.gepe.app.admin.internal.entity.AdminAuditLog;
 import com.gepe.app.admin.internal.repository.AdminAuditLogRepository;
-import com.gepe.app.platform.exception.PlatformError;
-import com.gepe.app.platform.exception.ServiceException;
-import com.gepe.app.platform.pagination.CursorEncoder;
+import com.gepe.app.platform.pagination.CursorBounds;
 import com.gepe.app.platform.pagination.CursorPage;
-import java.time.Instant;
+import com.gepe.app.platform.pagination.CursorPages;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -29,7 +26,6 @@ import tools.jackson.databind.ObjectMapper;
 public class AdminAuditService {
 
     private static final int MAX_PAGE_SIZE = 50;
-    private static final UUID MAX_UUID = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     private final AdminAuditLogRepository repository;
     private final ObjectMapper objectMapper;
@@ -51,40 +47,11 @@ public class AdminAuditService {
     public CursorPage<AdminAuditLogDto> list(String cursor, int limit) {
         int pageSize = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
 
-        Instant afterCreatedAt;
-        UUID afterId;
-        if (cursor == null || cursor.isBlank()) {
-            afterCreatedAt = Instant.now();
-            afterId = MAX_UUID;
-        } else {
-            CursorEncoder.DecodedCursor decoded = CursorEncoder.decode(cursor);
-            if (decoded == null || decoded.sortValues().length != 1) {
-                throw new ServiceException(PlatformError.INVALID_CURSOR);
-            }
-            try {
-                afterCreatedAt = Instant.ofEpochMilli(Long.parseLong(decoded.sortValues()[0]));
-                afterId = UUID.fromString(decoded.id());
-            } catch (RuntimeException e) {
-                throw new ServiceException(PlatformError.INVALID_CURSOR);
-            }
-        }
-
+        CursorBounds<UUID> bounds = CursorBounds.resolve(cursor, UUID.class);
         List<AdminAuditLog> rows = repository.findPage(
-                afterCreatedAt, afterId, PageRequest.of(0, pageSize + 1));
+                bounds.sortValue(), bounds.id(), CursorPages.pageable(pageSize));
 
-        boolean hasMore = rows.size() > pageSize;
-        List<AdminAuditLog> page = hasMore ? rows.subList(0, pageSize) : rows;
-
-        List<AdminAuditLogDto> items = page.stream().map(this::toDto).toList();
-
-        String nextCursor = null;
-        if (hasMore) {
-            AdminAuditLog last = page.get(page.size() - 1);
-            nextCursor = CursorEncoder.encode(
-                    last.getId().toString(),
-                    String.valueOf(last.getCreatedAt().toEpochMilli()));
-        }
-        return new CursorPage<>(items, nextCursor, hasMore);
+        return CursorPages.page(rows, pageSize, AdminAuditLog::getCreatedAt, AdminAuditLog::getId, this::toDto);
     }
 
     private AdminAuditLogDto toDto(AdminAuditLog log) {
