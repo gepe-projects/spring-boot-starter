@@ -1,8 +1,8 @@
 package com.gepe.app.auth.internal.service;
 
+import com.gepe.app.auth.api.RotatedKeyResponse;
 import com.gepe.app.auth.internal.crypto.MasterKeyProvider;
 import com.gepe.app.auth.internal.crypto.RsaKeyService;
-import com.gepe.app.auth.internal.dto.RotatedKeyResponse;
 import com.gepe.app.auth.internal.entity.SigningKey;
 import com.gepe.app.auth.internal.repository.SigningKeyRepository;
 import com.gepe.app.platform.support.Uuidv7;

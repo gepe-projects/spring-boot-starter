@@ -85,4 +85,10 @@ public class User {
     public void addRole(Role role) {
         roles.add(role);
     }
+
+    /** Replace penuh set role (dipakai admin assign roles) — clear+addAll pada set persistent. */
+    public void replaceRoles(Set<Role> newRoles) {
+        roles.clear();
+        roles.addAll(newRoles);
+    }
 }

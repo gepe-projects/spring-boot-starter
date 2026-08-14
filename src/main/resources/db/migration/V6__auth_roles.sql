@@ -5,10 +5,13 @@ CREATE TABLE auth.roles (
     CONSTRAINT pk_roles PRIMARY KEY (name)
 );
 
+-- SUPER_ADMIN = akun "root" protected (lihat readme/ADMIN.md §5a): hanya akun itu sendiri
+-- yang boleh mengubahnya; akunnya dibuat manual via SQL, bukan seeder.
 INSERT INTO auth.roles (name, description) VALUES
     ('USER', 'Regular user with default access'),
     ('ADMIN', 'Full system administrator'),
-    ('OPERATION', 'Operations team member');
+    ('OPERATION', 'Operations team member'),
+    ('SUPER_ADMIN', 'Root administrator — protected account, only editable by itself');
 
 CREATE TABLE auth.user_roles (
     user_id UUID        NOT NULL,

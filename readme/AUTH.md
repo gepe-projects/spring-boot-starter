@@ -59,10 +59,10 @@ com.gepe.app.auth/
     │   ├── PasswordHasher.java           ← BCrypt wrapper
     │   └── RsaKeyService.java            ← RSA 2048 key generation + encrypt/decrypt
     ├── delivery/http/
-    │   ├── AdminController.java          ← POST /admin/keys/rotate + PATCH /admin/users/{id}/status
     │   ├── AuthController.java           ← credential login/register/sessions
     │   ├── GoogleController.java         ← OAuth begin / callback / exchange
     │   └── JwksController.java           ← GET /.well-known/jwks.json
+    │   (AdminController sudah dipindah ke module admin — lihat ADMIN.md)
     ├── dto/                              ← DTO internal (service ↔ controller)
     │   ├── ExchangeRequest.java
     │   ├── GoogleAuthStartResponse.java
@@ -70,7 +70,6 @@ com.gepe.app.auth/
 │   ├── UserDetailsDto.java             ← GET /auth/me: UserDto (auth) + profil (module user)
     │   ├── LogoutRequest.java
     │   ├── RefreshRequest.java
-    │   ├── RotatedKeyResponse.java
     │   ├── RotatedToken.java
     │   ├── SessionInfo.java
     │   ├── SessionPage.java
@@ -78,8 +77,8 @@ com.gepe.app.auth/
     │   ├── SigningKeyData.java
     │   ├── SigningKeyStatus.java
     │   ├── TokenResponse.java
-    │   ├── TokenWithId.java
-    │   └── UpdateUserStatusRequest.java
+    │   └── TokenWithId.java
+    │   (RotatedKeyResponse → auth.api; UpdateUserStatusRequest → module admin)
     ├── entity/
     │   ├── AuthIdentity.java             ← satu baris = satu metode login
     │   ├── RefreshToken.java
@@ -115,7 +114,9 @@ com.gepe.app.auth/
     │   └── UserRepository.java
     └── service/
         ├── RoleResolver.java             ← default role USER + map roles → List<String>
-        ├── UserServiceImpl.java          ← implements api/UserService
+        ├── UserServiceImpl.java          ← implements api/UserService (read-only)
+        ├── UserAdminServiceImpl.java     ← implements api/UserAdminService (status/role admin; guard self & last-admin)
+        ├── KeyManagementServiceImpl.java ← implements api/KeyManagementService (rotate/list signing key)
         ├── AuthService.java              ← use‑case orchestration + event publishing + status gate
         ├── UserDetailsCache.java         ← cache Redis komposit GET /auth/me (read-through + evict)
         ├── RefreshTokenService.java      ← opaque token issue/rotate/revoke
@@ -172,12 +173,22 @@ Route yang tidak cocok **chain 0‑4** → ditolak oleh `fallback` (return JSON 
 
 > Callback endpoint **tidak** di bawah `/api/` karena ini redirect dari Google, bukan REST API.
 
-### 4.3 Admin (`AdminController`)
+### 4.3 Admin (module `admin` — lihat `ADMIN.md`)
 
-| Method | Path | Auth | Body | Response |
-|--------|------|------|------|----------|
-| POST | `/api/v1/admin/keys/rotate` | Bearer `ADMIN` | — | `RotatedKeyResponse` |
-| PATCH | `/api/v1/admin/users/{userId}/status` | Bearer `ADMIN` | `{status: "ACTIVE"\|"SUSPENDED"\|"DISABLED"}` | 200 (evict cache /me user tsb) |
+Endpoint admin TIDAK lagi berada di module auth — dipindah ke module `admin`
+(control-plane) yang memanggil `auth.api.UserAdminService` / `auth.api.KeyManagementService`.
+
+| Method | Path | Auth | Deskripsi |
+|--------|------|------|-----------|
+| POST | `/api/v1/admin/keys/rotate` | Bearer `ADMIN` | Rotasi signing key (runtime) |
+| GET | `/api/v1/admin/keys` | Bearer `ADMIN` | List signing key |
+| GET | `/api/v1/admin/users` | Bearer `ADMIN` | List user (cursor + filter status) |
+| GET | `/api/v1/admin/users/{userId}` | Bearer `ADMIN` | Detail user |
+| PATCH | `/api/v1/admin/users/{userId}/status` | Bearer `ADMIN` | Ganti status akun |
+| PUT | `/api/v1/admin/users/{userId}/roles` | Bearer `ADMIN` | Assign role |
+| GET | `/api/v1/admin/audit-logs` | Bearer `ADMIN` | Audit trail |
+
+Dokumentasi lengkap: [`ADMIN.md`](./ADMIN.md).
 
 ### 4.4 JWKS (`JwksController`)
 
@@ -413,15 +424,18 @@ Semua tabel di schema `auth`. **Tidak ada foreign key cross-schema.**
 
 ### Migration files (flat `db/migration/`)
 
+> Masih dev: migration "update table" (ALTER/seed/index) sudah digabung ke file
+> pembuatan tabelnya, jadi tidak ada file migration khusus update.
+
 ```
 V1__event_publication.sql          — platform: modulith event pub
 V2__quartz_tables.sql              — platform: Quartz JDBC store
 V3__auth_signing_keys.sql          — auth schema + signing_keys
-V4__auth_users.sql                 — users + auth_identities
+V4__auth_users.sql                 — users + auth_identities (incl. status + status_changed_at + CHECK + index filter status)
 V5__auth_refresh_tokens.sql        — refresh_tokens + composite index
-V6__auth_roles.sql                 — roles + user_roles
+V6__auth_roles.sql                 — roles + user_roles (incl. seed SUPER_ADMIN)
 V7__user_profile.sql               — module user: schema "user" + tabel profile
-V8__auth_user_status.sql           — auth: kolom status + status_changed_at + CHECK constraint
+V8__admin_audit_logs.sql           — module admin: schema admin + admin_audit_logs
 ```
 
 ---
@@ -475,7 +489,14 @@ File: `src/main/resources/i18n/auth/messages.properties` dan `messages_id.proper
 | `auth.logout_success` | Logout successful | Logout berhasil |
 | `auth.password_set_success` | Password set successfully | Password berhasil diatur |
 | `auth.sessions_revoked_success` | Selected sessions revoked | Session terpilih telah dicabut |
-| `auth.keys_rotated_success` | Signing keys rotated | Kunci penandatanganan berhasil dirotasi |
+
+> `auth.user_status_updated` dan `auth.keys_rotated_success` sudah dipindah ke module
+> admin sebagai `admin.user_status_updated` / `admin.keys_rotated_success`
+> (bundle `i18n/admin/messages*.properties`). Key error guard operasi admin
+> (`admin.self_operation_forbidden`, `admin.insufficient_privilege`, `admin.last_admin_removal`,
+> `admin.last_super_admin_removal`, `admin.last_super_admin_status`) juga ada di bundle admin —
+> lihat `ADMIN.md` §5. Di bundle auth tersisa `auth.role_not_found` / `auth.role_set_empty`
+> (validasi katalog role — domain auth).
 
 ---
 

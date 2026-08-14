@@ -23,6 +23,8 @@ public interface SigningKeyRepository extends JpaRepository<SigningKey, UUID> {
 
     List<SigningKey> findByStatusIn(List<SigningKey.Status> statuses);
 
+    List<SigningKey> findAllByOrderByNotBeforeDesc();
+
     List<SigningKey> findByStatusInAndNotAfterAfter(
             List<SigningKey.Status> statuses, Instant now);
 

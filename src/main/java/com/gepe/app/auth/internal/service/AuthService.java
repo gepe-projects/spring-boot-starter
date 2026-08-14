@@ -145,16 +145,6 @@ public class AuthService {
         });
     }
 
-    // ── admin: ganti status akun (suspend/disable/activate) ──
-    public void changeStatus(UUID userId, UserStatus newStatus) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ServiceException(AuthError.USER_NOT_FOUND));
-        user.changeStatus(newStatus);
-        userRepository.save(user);
-        // status berubah → UserDto di cache /me ikut berubah (idempotent, aman di rollback)
-        userDetailsCache.evict(userId);
-    }
-
     // ── set password (untuk user yang login via google saja) → binding ke credentials ──
     public void setPassword(UUID userId, String newPassword) {
         if (authIdentityRepository.existsByUserIdAndProvider(userId, AuthIdentity.PROVIDER_CREDENTIALS)) {

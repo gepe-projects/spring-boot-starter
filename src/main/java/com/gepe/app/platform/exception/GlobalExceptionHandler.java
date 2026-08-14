@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
 
 	/** Resource not found error */
 	@ExceptionHandler(NoResourceFoundException.class)
-	public ResponseEntity<ErrorResponse> handleValidation(NoResourceFoundException exception) {
+	public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException exception) {
 		var errorResponse = new ErrorResponse(messageHelper.get("http.not_found"), null);
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
 	}

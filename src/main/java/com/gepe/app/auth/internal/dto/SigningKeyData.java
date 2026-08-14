@@ -8,7 +8,9 @@ public record SigningKeyData(
         String publicKey,
         byte[] privateKeyCipher,
         String encKeyId,
+        String algorithm,
         SigningKeyStatus status,
         Instant notBefore,
-        Instant notAfter) {
+        Instant notAfter,
+        Instant createdAt) {
 }

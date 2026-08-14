@@ -35,6 +35,16 @@ public enum AuthError implements ErrorCode {
     IDENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "auth.identity_not_found"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "auth.user_not_found"),
 
+    // ── admin (guard operasi akun) — key message ada di bundle i18n/admin (kebijakan
+    //    operasi admin), enum tetap di sini karena guard dieksekusi module auth ──
+    SELF_OPERATION_FORBIDDEN(HttpStatus.FORBIDDEN, "admin.self_operation_forbidden"),
+    INSUFFICIENT_PRIVILEGE(HttpStatus.FORBIDDEN, "admin.insufficient_privilege"),
+    ROLE_NOT_FOUND(HttpStatus.BAD_REQUEST, "auth.role_not_found"),
+    ROLE_SET_EMPTY(HttpStatus.BAD_REQUEST, "auth.role_set_empty"),
+    LAST_ADMIN_REMOVAL(HttpStatus.CONFLICT, "admin.last_admin_removal"),
+    LAST_SUPER_ADMIN_REMOVAL(HttpStatus.CONFLICT, "admin.last_super_admin_removal"),
+    LAST_SUPER_ADMIN_STATUS(HttpStatus.CONFLICT, "admin.last_super_admin_status"),
+
     // ── key management ──
     KEY_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "auth.key_generation_failed"),
     KEY_NOT_FOUND(HttpStatus.INTERNAL_SERVER_ERROR, "auth.key_not_found"),

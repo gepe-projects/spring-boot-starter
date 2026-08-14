@@ -21,7 +21,8 @@ class I18nConfig {
 		source.setBasenames(
 				"classpath:i18n/messages/messages",
 				"classpath:i18n/auth/messages",
-				"classpath:i18n/user/messages");
+				"classpath:i18n/user/messages",
+				"classpath:i18n/admin/messages");
 		source.setDefaultEncoding("UTF-8");
 		source.setDefaultLocale(Locale.ENGLISH);
 		source.setUseCodeAsDefaultMessage(true);

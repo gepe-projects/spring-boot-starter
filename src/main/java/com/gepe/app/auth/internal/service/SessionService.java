@@ -5,6 +5,7 @@ import com.gepe.app.auth.internal.dto.SessionPage;
 import com.gepe.app.auth.internal.entity.RefreshToken;
 import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.auth.internal.repository.RefreshTokenRepository;
+import com.gepe.app.platform.exception.PlatformError;
 import com.gepe.app.platform.exception.ServiceException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -96,7 +97,7 @@ public class SessionService {
                 UUID.fromString(parts[1])
             );
         } catch (Exception e) {
-            throw new ServiceException(AuthError.CURRENT_TOKEN_REQUIRED);
+            throw new ServiceException(PlatformError.INVALID_CURSOR);
         }
     }
 }

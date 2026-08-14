@@ -191,20 +191,6 @@ class AuthServiceTest {
     }
 
     @Test
-    void changeStatusUpdatesUserAndEvictsCache() {
-        UUID userId = Uuidv7.generate();
-        User user = new User("a@b.com", null);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-
-        service.changeStatus(userId, UserStatus.SUSPENDED);
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.SUSPENDED);
-        assertThat(user.getStatusChangedAt()).isNotNull();
-        verify(userRepository).save(user);
-        verify(userDetailsCache).evict(userId);
-    }
-
-    @Test
     void registerInitializesProfileWithDisplayName() {
         String email = "a@b.com";
         when(userRepository.existsByEmail(email)).thenReturn(false);

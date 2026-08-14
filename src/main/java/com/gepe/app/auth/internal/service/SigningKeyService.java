@@ -41,15 +41,25 @@ public class SigningKeyService {
                 .toList();
     }
 
+    /** Semua key (termasuk RETIRED), terbaru dulu — untuk listing admin. */
+    public List<SigningKeyData> getAll() {
+        return signingKeyRepository.findAllByOrderByNotBeforeDesc()
+                .stream()
+                .map(this::toData)
+                .toList();
+    }
+
     private SigningKeyData toData(SigningKey e) {
         return new SigningKeyData(
                 e.getKid(),
                 e.getPublicKey(),
                 e.getPrivateKeyCipher(),
                 e.getEncKeyId(),
+                e.getAlgorithm(),
                 mapStatus(e.getStatus()),
                 e.getNotBefore(),
-                e.getNotAfter());
+                e.getNotAfter(),
+                e.getCreatedAt());
     }
 
     private static SigningKeyStatus mapStatus(SigningKey.Status s) {

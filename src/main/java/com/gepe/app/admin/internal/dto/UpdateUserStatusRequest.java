@@ -1,4 +1,4 @@
-package com.gepe.app.auth.internal.dto;
+package com.gepe.app.admin.internal.dto;
 
 import com.gepe.app.auth.api.UserStatus;
 import jakarta.validation.constraints.NotNull;
