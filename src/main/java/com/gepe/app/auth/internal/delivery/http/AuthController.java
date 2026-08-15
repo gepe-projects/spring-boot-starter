@@ -7,7 +7,7 @@ import com.gepe.app.auth.internal.service.RefreshTokenService;
 import com.gepe.app.auth.internal.service.SessionService;
 import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.exception.ServiceException;
-import com.gepe.app.platform.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPage;
 import com.gepe.app.platform.web.api.ApiVersions;
 import com.gepe.app.platform.web.context.RequestContext;
 import com.gepe.app.platform.web.response.ApiResponse;

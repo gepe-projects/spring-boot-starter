@@ -1,4 +1,4 @@
-package com.gepe.app.platform.pagination;
+package com.gepe.app.platform.web.pagination;
 
 import com.gepe.app.platform.exception.PlatformError;
 import com.gepe.app.platform.exception.ServiceException;

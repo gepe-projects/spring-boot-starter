@@ -5,9 +5,9 @@ import com.gepe.app.auth.internal.entity.RefreshToken;
 import com.gepe.app.auth.internal.exception.AuthError;
 import com.gepe.app.auth.internal.repository.RefreshTokenRepository;
 import com.gepe.app.platform.exception.ServiceException;
-import com.gepe.app.platform.pagination.CursorBounds;
-import com.gepe.app.platform.pagination.CursorPage;
-import com.gepe.app.platform.pagination.CursorPages;
+import com.gepe.app.platform.web.pagination.CursorBounds;
+import com.gepe.app.platform.web.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPages;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -20,20 +20,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class SessionService {
 
-    private static final int MAX_PAGE_SIZE = 50;
-
     private final RefreshTokenRepository refreshTokenRepository;
 
     public CursorPage<SessionInfo> listActive(UUID userId, UUID currentTokenId, String cursor, int limit) {
-        int pageSize = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
+        int pageSize = CursorPages.clampPageSize(limit);
 
         Instant now = Instant.now();
         CursorBounds<UUID> bounds = CursorBounds.resolve(cursor, UUID.class);
 
         List<RefreshToken> rows = refreshTokenRepository.findActivePage(
-                userId, now, bounds.sortValue(), bounds.id(), CursorPages.pageable(pageSize));
+                userId, now, bounds.sortValue(), bounds.id(), CursorPages.lookaheadPageable(pageSize));
 
-        return CursorPages.page(rows, pageSize, RefreshToken::getIssuedAt, RefreshToken::getId,
+        return CursorPages.fromRows(rows, pageSize, RefreshToken::getIssuedAt, RefreshToken::getId,
                 rt -> toSessionInfo(rt, currentTokenId));
     }
 

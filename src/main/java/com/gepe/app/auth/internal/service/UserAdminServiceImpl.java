@@ -12,9 +12,9 @@ import com.gepe.app.auth.internal.repository.RefreshTokenRepository;
 import com.gepe.app.auth.internal.repository.RoleRepository;
 import com.gepe.app.auth.internal.repository.UserRepository;
 import com.gepe.app.platform.exception.ServiceException;
-import com.gepe.app.platform.pagination.CursorBounds;
-import com.gepe.app.platform.pagination.CursorPage;
-import com.gepe.app.platform.pagination.CursorPages;
+import com.gepe.app.platform.web.pagination.CursorBounds;
+import com.gepe.app.platform.web.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPages;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -48,8 +48,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserAdminServiceImpl implements UserAdminService {
 
-    private static final int MAX_PAGE_SIZE = 50;
-
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -58,14 +56,14 @@ public class UserAdminServiceImpl implements UserAdminService {
     @Override
     @Transactional(readOnly = true)
     public CursorPage<UserDto> listUsers(String cursor, int limit, UserStatus status) {
-        int pageSize = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
+        int pageSize = CursorPages.clampPageSize(limit);
 
         CursorBounds<UUID> bounds = CursorBounds.resolve(cursor, UUID.class);
         List<User> rows = status != null
-                ? userRepository.findAdminPageByStatus(status, bounds.sortValue(), bounds.id(), CursorPages.pageable(pageSize))
-                : userRepository.findAdminPage(bounds.sortValue(), bounds.id(), CursorPages.pageable(pageSize));
+                ? userRepository.findAdminPageByStatus(status, bounds.sortValue(), bounds.id(), CursorPages.lookaheadPageable(pageSize))
+                : userRepository.findAdminPage(bounds.sortValue(), bounds.id(), CursorPages.lookaheadPageable(pageSize));
 
-        return CursorPages.page(rows, pageSize, User::getCreatedAt, User::getId, this::toUserDto);
+        return CursorPages.fromRows(rows, pageSize, User::getCreatedAt, User::getId, this::toUserDto);
     }
 
     @Override

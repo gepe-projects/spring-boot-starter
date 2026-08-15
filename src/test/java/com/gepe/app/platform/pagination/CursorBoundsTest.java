@@ -7,6 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
+
+import com.gepe.app.platform.web.pagination.CursorBounds;
+import com.gepe.app.platform.web.pagination.CursorEncoder;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

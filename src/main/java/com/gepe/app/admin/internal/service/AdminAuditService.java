@@ -3,9 +3,9 @@ package com.gepe.app.admin.internal.service;
 import com.gepe.app.admin.internal.dto.AdminAuditLogDto;
 import com.gepe.app.admin.internal.entity.AdminAuditLog;
 import com.gepe.app.admin.internal.repository.AdminAuditLogRepository;
-import com.gepe.app.platform.pagination.CursorBounds;
-import com.gepe.app.platform.pagination.CursorPage;
-import com.gepe.app.platform.pagination.CursorPages;
+import com.gepe.app.platform.web.pagination.CursorBounds;
+import com.gepe.app.platform.web.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPages;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +25,6 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class AdminAuditService {
 
-    private static final int MAX_PAGE_SIZE = 50;
-
     private final AdminAuditLogRepository repository;
     private final ObjectMapper objectMapper;
 
@@ -44,14 +42,14 @@ public class AdminAuditService {
     }
 
     @Transactional(readOnly = true)
-    public CursorPage<AdminAuditLogDto> list(String cursor, int limit) {
-        int pageSize = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
+    public CursorPage<AdminAuditLogDto> listLogs(String cursor, int limit) {
+        int pageSize = CursorPages.clampPageSize(limit);
 
         CursorBounds<UUID> bounds = CursorBounds.resolve(cursor, UUID.class);
         List<AdminAuditLog> rows = repository.findPage(
-                bounds.sortValue(), bounds.id(), CursorPages.pageable(pageSize));
+                bounds.sortValue(), bounds.id(), CursorPages.lookaheadPageable(pageSize));
 
-        return CursorPages.page(rows, pageSize, AdminAuditLog::getCreatedAt, AdminAuditLog::getId, this::toDto);
+        return CursorPages.fromRows(rows, pageSize, AdminAuditLog::getCreatedAt, AdminAuditLog::getId, this::toDto);
     }
 
     private AdminAuditLogDto toDto(AdminAuditLog log) {

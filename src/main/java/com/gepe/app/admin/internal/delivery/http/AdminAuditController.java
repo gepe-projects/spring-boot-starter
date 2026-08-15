@@ -2,7 +2,7 @@ package com.gepe.app.admin.internal.delivery.http;
 
 import com.gepe.app.admin.internal.dto.AdminAuditLogDto;
 import com.gepe.app.admin.internal.service.AdminAuditService;
-import com.gepe.app.platform.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPage;
 import com.gepe.app.platform.web.api.ApiVersions;
 import com.gepe.app.platform.web.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +25,6 @@ class AdminAuditController {
     ResponseEntity<ApiResponse<CursorPage<AdminAuditLogDto>>> listLogs(
             @RequestParam(value = "cursor", required = false) String cursor,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return ResponseEntity.ok(new ApiResponse<>(null, auditService.list(cursor, limit)));
+        return ResponseEntity.ok(new ApiResponse<>(null, auditService.listLogs(cursor, limit)));
     }
 }

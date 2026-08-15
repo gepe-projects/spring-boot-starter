@@ -9,7 +9,7 @@ import com.gepe.app.auth.internal.repository.RefreshTokenRepository;
 import com.gepe.app.auth.internal.repository.RoleRepository;
 import com.gepe.app.auth.internal.repository.UserRepository;
 import com.gepe.app.platform.exception.ServiceException;
-import com.gepe.app.platform.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPage;
 import com.gepe.app.platform.support.Uuidv7;
 import java.time.Instant;
 import java.util.List;

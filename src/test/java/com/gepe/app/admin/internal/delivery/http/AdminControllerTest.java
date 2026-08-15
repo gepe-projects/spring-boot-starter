@@ -10,7 +10,7 @@ import com.gepe.app.auth.api.dto.SigningKeyStatus;
 import com.gepe.app.auth.api.dto.UserDto;
 import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.platform.config.i18n.MessageHelper;
-import com.gepe.app.platform.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPage;
 import com.gepe.app.platform.support.Uuidv7;
 import java.time.Instant;
 import java.util.List;
@@ -135,7 +135,7 @@ class AdminControllerTest {
         AdminAuditLogDto log = new AdminAuditLogDto(
                 Uuidv7.generate(), Uuidv7.generate(), "USER_STATUS_CHANGED", "USER",
                 Uuidv7.generate().toString(), "{\"status\":\"SUSPENDED\"}", Instant.now());
-        when(adminAuditService.list(any(), anyInt()))
+        when(adminAuditService.listLogs(any(), anyInt()))
                 .thenReturn(new CursorPage<>(List.of(log), null, false));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs"))

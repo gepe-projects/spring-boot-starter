@@ -7,7 +7,7 @@ import com.gepe.app.auth.api.dto.AdminUserDetailDto;
 import com.gepe.app.auth.api.dto.UserDto;
 import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.platform.config.i18n.MessageHelper;
-import com.gepe.app.platform.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPage;
 import com.gepe.app.platform.web.api.ApiVersions;
 import com.gepe.app.platform.web.context.RequestContext;
 import com.gepe.app.platform.web.response.ApiResponse;

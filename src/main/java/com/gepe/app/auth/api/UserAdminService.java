@@ -4,7 +4,7 @@ import com.gepe.app.auth.api.dto.AdminUserDetailDto;
 import com.gepe.app.auth.api.dto.RoleType;
 import com.gepe.app.auth.api.dto.UserDto;
 import com.gepe.app.auth.api.dto.UserStatus;
-import com.gepe.app.platform.pagination.CursorPage;
+import com.gepe.app.platform.web.pagination.CursorPage;
 import java.util.Set;
 import java.util.UUID;
 

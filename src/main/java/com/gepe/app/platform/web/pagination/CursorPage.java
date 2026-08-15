@@ -1,4 +1,4 @@
-package com.gepe.app.platform.pagination;
+package com.gepe.app.platform.web.pagination;
 
 import java.util.Collections;
 import java.util.List;

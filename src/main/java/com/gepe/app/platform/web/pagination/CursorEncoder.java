@@ -1,4 +1,4 @@
-package com.gepe.app.platform.pagination;
+package com.gepe.app.platform.web.pagination;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;

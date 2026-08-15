@@ -1,4 +1,4 @@
-package com.gepe.app.platform.pagination;
+package com.gepe.app.platform.web.pagination;
 
 import java.time.Instant;
 import java.util.List;
@@ -7,21 +7,32 @@ import org.springframework.data.domain.PageRequest;
 
 /**
  * Perakitan halaman keyset — bagian yang sama di setiap service list, dipindah ke sini
- * supaya service tinggal: resolve bounds → query repository → {@link #page}.
+ * supaya service tinggal: resolve bounds → query repository → {@link #fromRows}.
  *
- * <p>Kontrak (AGENTS.md §4): query memakai {@link #pageable} (fetch {@code pageSize+1}
- * untuk deteksi {@code hasMore}), dan {@code nextCursor} dibangun dari baris terakhir
- * halaman lewat {@link CursorEncoder} (opaque, base64url).
+ * <p>Kontrak (AGENTS.md §4): query memakai {@link #lookaheadPageable} (fetch
+ * {@code pageSize+1} untuk deteksi {@code hasMore}), dan {@code nextCursor} dibangun
+ * dari baris terakhir halaman lewat {@link CursorEncoder} (opaque, base64url).
  */
 public final class CursorPages {
 
+	/** Batas maksimum ukuran halaman yang boleh diminta client — satu-satunya sumber kebenaran. */
+	public static final int MAX_PAGE_SIZE = 100;
+
 	private CursorPages() {}
+
+	/**
+	 * Clamp {@code limit} dari client ke rentang {@code [1, MAX_PAGE_SIZE]}.
+	 * Setiap service list wajib lewat sini — jangan menulis konstanta sendiri.
+	 */
+	public static int clampPageSize(int limit) {
+		return Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
+	}
 
 	/**
 	 * Pageable yang mengambil {@code pageSize + 1} baris — baris ekstra dipakai
 	 * hanya untuk tahu apakah masih ada halaman berikutnya.
 	 */
-	public static PageRequest pageable(int pageSize) {
+	public static PageRequest lookaheadPageable(int pageSize) {
 		return PageRequest.of(0, pageSize + 1);
 	}
 
@@ -34,7 +45,7 @@ public final class CursorPages {
 	 * @param id        ekstraktor id (UUID/bigint/int — bebas)
 	 * @param toDto     mapping entity → DTO
 	 */
-	public static <T, D, ID> CursorPage<D> page(
+	public static <T, D, ID> CursorPage<D> fromRows(
 			List<T> rows,
 			int pageSize,
 			Function<T, Instant> sortValue,
