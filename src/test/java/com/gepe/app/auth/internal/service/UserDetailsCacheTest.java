@@ -1,11 +1,11 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.UserDto;
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.UserDto;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.auth.internal.dto.UserDetailsDto;
 import com.gepe.app.platform.support.Uuidv7;
-import com.gepe.app.user.api.Gender;
-import com.gepe.app.user.api.UserProfileDto;
+import com.gepe.app.user.api.dto.Gender;
+import com.gepe.app.user.api.dto.UserProfileDto;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;

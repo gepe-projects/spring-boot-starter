@@ -3,7 +3,7 @@ package com.gepe.app.user.internal.delivery.http;
 import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.platform.support.Uuidv7;
-import com.gepe.app.user.api.UserProfileDto;
+import com.gepe.app.user.api.dto.UserProfileDto;
 import com.gepe.app.user.internal.exception.UserProfileError;
 import com.gepe.app.user.internal.service.ProfileServiceImpl;
 import java.time.Instant;

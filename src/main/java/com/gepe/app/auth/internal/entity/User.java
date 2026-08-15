@@ -1,6 +1,6 @@
 package com.gepe.app.auth.internal.entity;
 
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.platform.support.Uuidv7;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -2,9 +2,9 @@ package com.gepe.app.user.internal.service;
 
 import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.platform.support.Uuidv7;
-import com.gepe.app.user.api.ProfileUpdated;
-import com.gepe.app.user.api.UserProfileDto;
-import com.gepe.app.user.api.UserRegistered;
+import com.gepe.app.user.api.dto.UserProfileDto;
+import com.gepe.app.user.api.event.ProfileUpdatedEvent;
+import com.gepe.app.user.api.event.UserRegisteredEvent;
 import com.gepe.app.user.internal.dto.UpdateProfileRequest;
 import com.gepe.app.user.internal.entity.UserProfile;
 import com.gepe.app.user.internal.exception.UserProfileError;
@@ -53,7 +53,7 @@ class ProfileServiceImplTest {
                 profile.getUserId().equals(userId)
                         && "Nama".equals(profile.getDisplayName())
                         && "https://pic.example.com/a.png".equals(profile.getAvatarUrl())));
-        verify(events).publishEvent(new UserRegistered(
+        verify(events).publishEvent(new UserRegisteredEvent(
                 userId, "a@b.com", "Nama", "https://pic.example.com/a.png"));
     }
 
@@ -98,8 +98,8 @@ class ProfileServiceImplTest {
         assertThat(dto.avatarUrl()).isNull(); // "" → clear
         assertThat(dto.timezone()).isEqualTo("Asia/Jakarta");
         assertThat(existing.getNickname()).isNull(); // field null → tidak diubah
-        // update sukses → publish ProfileUpdated (konsumen: evict cache GET /auth/me)
-        verify(events).publishEvent(new ProfileUpdated(userId));
+        // update sukses → publish ProfileUpdatedEvent (konsumen: evict cache GET /auth/me)
+        verify(events).publishEvent(new ProfileUpdatedEvent(userId));
     }
 
     @Test

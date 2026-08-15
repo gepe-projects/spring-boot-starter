@@ -1,8 +1,8 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.RoleType;
-import com.gepe.app.auth.api.UserDto;
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.RoleType;
+import com.gepe.app.auth.api.dto.UserDto;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.auth.internal.crypto.PasswordHasher;
 import com.gepe.app.auth.internal.dto.RotatedToken;
 import com.gepe.app.auth.internal.dto.TokenResponse;
@@ -21,7 +21,7 @@ import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.platform.support.Uuidv7;
 import com.gepe.app.platform.web.security.AuthenticatedUser;
 import com.gepe.app.user.api.ProfileService;
-import com.gepe.app.user.api.UserProfileDto;
+import com.gepe.app.user.api.dto.UserProfileDto;
 import com.nimbusds.jwt.SignedJWT;
 import java.time.Duration;
 import java.time.Instant;

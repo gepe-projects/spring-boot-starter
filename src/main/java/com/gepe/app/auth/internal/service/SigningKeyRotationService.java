@@ -1,6 +1,7 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.RotatedKeyResponse;
+import com.gepe.app.auth.api.dto.RotatedKeyDto;
+import com.gepe.app.auth.api.dto.SigningKeyStatus;
 import com.gepe.app.auth.internal.crypto.MasterKeyProvider;
 import com.gepe.app.auth.internal.crypto.RsaKeyService;
 import com.gepe.app.auth.internal.entity.SigningKey;
@@ -32,7 +33,7 @@ public class SigningKeyRotationService {
     private final MasterKeyProvider masterKeyProvider;
     private final StringRedisTemplate stringRedisTemplate;
 
-    public RotatedKeyResponse rotate() {
+    public RotatedKeyDto rotate() {
         Instant now = Instant.now();
 
         List<SigningKey> previousKeys = signingKeyRepository.findByStatusIn(
@@ -76,6 +77,6 @@ public class SigningKeyRotationService {
 
         stringRedisTemplate.delete(JWKS_CACHE_KEY);
 
-        return new RotatedKeyResponse(newKey.getKid(), "ACTIVE", newKey.getNotBefore());
+        return new RotatedKeyDto(newKey.getKid(), SigningKeyStatus.ACTIVE, newKey.getNotBefore());
     }
 }

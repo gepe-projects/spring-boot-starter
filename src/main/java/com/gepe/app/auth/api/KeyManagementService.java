@@ -1,5 +1,7 @@
 package com.gepe.app.auth.api;
 
+import com.gepe.app.auth.api.dto.RotatedKeyDto;
+import com.gepe.app.auth.api.dto.SigningKeyDto;
 import java.util.List;
 
 /**
@@ -11,8 +13,8 @@ import java.util.List;
  */
 public interface KeyManagementService {
 
-    RotatedKeyResponse rotateSigningKey();
+    RotatedKeyDto rotateSigningKey();
 
     /** Daftar semua signing key (ACTIVE/PREVIOUS/RETIRED), terbaru dulu. */
-    List<SigningKeyInfo> listSigningKeys();
+    List<SigningKeyDto> listSigningKeys();
 }

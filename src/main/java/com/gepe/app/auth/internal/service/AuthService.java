@@ -1,9 +1,9 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.RoleType;
-import com.gepe.app.auth.api.UserAuthenticated;
-import com.gepe.app.auth.api.UserDto;
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.RoleType;
+import com.gepe.app.auth.api.dto.UserDto;
+import com.gepe.app.auth.api.dto.UserStatus;
+import com.gepe.app.auth.api.event.UserAuthenticatedEvent;
 import com.gepe.app.auth.internal.crypto.PasswordHasher;
 import com.gepe.app.auth.internal.dto.RotatedToken;
 import com.gepe.app.auth.internal.dto.TokenResponse;
@@ -22,7 +22,7 @@ import com.gepe.app.platform.exception.ValidationException;
 import com.gepe.app.platform.web.response.ValidationError;
 import com.gepe.app.platform.web.security.AuthenticatedUser;
 import com.gepe.app.user.api.ProfileService;
-import com.gepe.app.user.api.UserProfileDto;
+import com.gepe.app.user.api.dto.UserProfileDto;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -102,7 +102,7 @@ public class AuthService {
             authIdentityRepository.save(new AuthIdentity(
                     user.getId(), AuthIdentity.PROVIDER_GOOGLE, googleSub, email, null));
             if (isNew) {
-                // profil diinisialisasi user module (yang publish UserRegistered), satu transaksi dgn akun
+                // profil diinisialisasi user module (yang publish UserRegisteredEvent), satu transaksi dgn akun
                 profileService.initialize(user.getId(), user.getEmail(), displayName, avatarUrl);
             }
         }
@@ -186,7 +186,7 @@ public class AuthService {
 
         TokenWithId rt = refreshTokenService.issue(user.getId(), deviceInfo, ipAddress, Duration.ofDays(30));
 
-        events.publishEvent(new UserAuthenticated(user.getId(), user.getEmail()));
+        events.publishEvent(new UserAuthenticatedEvent(user.getId(), user.getEmail()));
         return new TokenResponse(accessToken, rt.raw(), rt.id(), rt.id(), toUserDto(user));
     }
 

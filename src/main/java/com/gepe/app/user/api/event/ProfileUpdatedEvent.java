@@ -1,4 +1,4 @@
-package com.gepe.app.user.api;
+package com.gepe.app.user.api.event;
 
 import java.util.UUID;
 
@@ -10,4 +10,4 @@ import java.util.UUID;
  * dipanggil ulang / retry). Dikirim AFTER_COMMIT, jadi cache lama masih bisa terbaca di
  * jendela kecil antara commit dan eksekusi listener — dibatasi TTL cache.
  */
-public record ProfileUpdated(UUID userId) {}
+public record ProfileUpdatedEvent(UUID userId) {}

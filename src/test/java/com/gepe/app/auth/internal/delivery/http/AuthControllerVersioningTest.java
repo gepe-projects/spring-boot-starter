@@ -1,7 +1,7 @@
 package com.gepe.app.auth.internal.delivery.http;
 
-import com.gepe.app.auth.api.UserDto;
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.UserDto;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.auth.internal.dto.TokenResponse;
 import com.gepe.app.auth.internal.service.AuthService;
 import com.gepe.app.auth.internal.service.RefreshTokenService;

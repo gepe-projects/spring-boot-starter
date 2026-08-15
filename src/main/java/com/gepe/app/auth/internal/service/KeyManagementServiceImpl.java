@@ -1,8 +1,8 @@
 package com.gepe.app.auth.internal.service;
 
 import com.gepe.app.auth.api.KeyManagementService;
-import com.gepe.app.auth.api.RotatedKeyResponse;
-import com.gepe.app.auth.api.SigningKeyInfo;
+import com.gepe.app.auth.api.dto.RotatedKeyDto;
+import com.gepe.app.auth.api.dto.SigningKeyDto;
 import com.gepe.app.auth.internal.dto.SigningKeyData;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -23,23 +23,23 @@ public class KeyManagementServiceImpl implements KeyManagementService {
 
     @Override
     @Transactional
-    public RotatedKeyResponse rotateSigningKey() {
+    public RotatedKeyDto rotateSigningKey() {
         return signingKeyRotationService.rotate();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<SigningKeyInfo> listSigningKeys() {
+    public List<SigningKeyDto> listSigningKeys() {
         return signingKeyService.getAll().stream()
                 .map(this::toInfo)
                 .toList();
     }
 
-    private SigningKeyInfo toInfo(SigningKeyData key) {
-        return new SigningKeyInfo(
+    private SigningKeyDto toInfo(SigningKeyData key) {
+        return new SigningKeyDto(
                 key.kid(),
                 key.algorithm(),
-                key.status().name(),
+                key.status(),
                 key.notBefore(),
                 key.notAfter(),
                 key.createdAt());

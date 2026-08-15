@@ -45,11 +45,20 @@ Client (Web / Mobile / SPA)
 
 ```
 com.gepe.app.auth/
-├── api/                                  ← Public contract (inter‑module)
-│   ├── UserService.java                   ←  sync interface
-│   ├── UserDto.java                      ←  DTO data user (boundary, incl. roles + status)
-│   ├── UserStatus.java                   ←  enum status akun (ACTIVE|SUSPENDED|DISABLED)
-│   └── UserAuthenticated.java            ←  event (login)
+├── api/                                  ← Public contract (inter‑module) — named interface
+│   ├── UserService.java                   ←  sync interface (read-only lookup user)
+│   ├── UserAdminService.java              ←  kontrak admin: status/role (dipakai module admin)
+│   ├── KeyManagementService.java          ←  kontrak admin: rotasi/listing signing key
+│   ├── dto/                               ←  boundary DTO + enum yang menyeberang modul
+│   │   ├── UserDto.java                  ←  data user (boundary, incl. roles + status)
+│   │   ├── UserStatus.java               ←  enum status akun (ACTIVE|SUSPENDED|DISABLED)
+│   │   ├── RoleType.java                 ←  enum role platform (USER|ADMIN|OPERATION|SUPER_ADMIN)
+│   │   ├── AdminUserDetailDto.java       ←  detail user untuk halaman admin
+│   │   ├── RotatedKeyDto.java            ←  hasil rotasi signing key
+│   │   ├── SigningKeyDto.java            ←  info signing key untuk listing admin
+│   │   └── SigningKeyStatus.java         ←  enum lifecycle signing key (ACTIVE|PREVIOUS|RETIRED)
+│   └── event/                             ←  domain events (async, lintas modul)
+│       └── UserAuthenticatedEvent.java    ←  dipublish setelah login sukses
 └── internal/                             ← Implementation detail
     ├── config/
     │   └── AuthSecurityConfig.java       ← 6 SecurityFilterChain
@@ -67,7 +76,7 @@ com.gepe.app.auth/
     │   ├── ExchangeRequest.java
     │   ├── GoogleAuthStartResponse.java
     │   ├── LoginRequest.java
-│   ├── UserDetailsDto.java             ← GET /auth/me: UserDto (auth) + profil (module user)
+    │   ├── UserDetailsDto.java             ← GET /auth/me: UserDto (auth) + profil (module user)
     │   ├── LogoutRequest.java
     │   ├── RefreshRequest.java
     │   ├── RotatedToken.java
@@ -75,10 +84,9 @@ com.gepe.app.auth/
     │   ├── SessionPage.java
     │   ├── SetPasswordRequest.java
     │   ├── SigningKeyData.java
-    │   ├── SigningKeyStatus.java
     │   ├── TokenResponse.java
     │   └── TokenWithId.java
-    │   (RotatedKeyResponse → auth.api; UpdateUserStatusRequest → module admin)
+    │   (RotatedKeyDto → auth.api.dto; UpdateUserStatusRequest → module admin)
     ├── entity/
     │   ├── AuthIdentity.java             ← satu baris = satu metode login
     │   ├── RefreshToken.java
@@ -102,7 +110,7 @@ com.gepe.app.auth/
     │   ├── JwtProperties.java            ← @ConfigurationProperties
     │   └── JwtService.java               ← sign + issue RS256 JWT
     ├── listener/
-    │   └── ProfileUpdateCacheEvictor.java ← evict cache /me saat ProfileUpdated (dari module user)
+    │   └── ProfileUpdateCacheEvictor.java ← evict cache /me saat ProfileUpdatedEvent (dari module user)
     ├── oauth/
     │   ├── GoogleOAuthService.java       ← PKCE + token exchange + id_token validation
     │   ├── OAuthConfig.java             ← @ConfigurationProperties + Google JwtDecoder

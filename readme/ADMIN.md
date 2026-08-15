@@ -96,7 +96,7 @@ AdminKeyService.rotateSigningKey(actorId)
     │           ├── generate RSA 2048 baru → ACTIVE (unique: hanya 1 ACTIVE)
     │           └── delete cache JWKS Redis
     ├── audit: SIGNING_KEY_ROTATED (payload: kid, status, notBefore)
-    └── return RotatedKeyResponse
+    └── return RotatedKeyDto
 ```
 
 - **Tanpa deploy ulang** — cukup klik/API. Berlaku langsung untuk semua instance.

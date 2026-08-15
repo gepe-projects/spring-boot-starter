@@ -1,6 +1,6 @@
 package com.gepe.app.auth.internal.repository;
 
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.auth.internal.entity.User;
 import java.time.Instant;
 import java.util.List;

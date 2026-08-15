@@ -1,4 +1,4 @@
-package com.gepe.app.user.api;
+package com.gepe.app.user.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
@@ -6,8 +6,8 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Profil user — DTO boundary module user.
- * TIDAK berisi data identitas auth (email/roles) — itu milik {@code auth.api.UserDto}.
+ * Profil user — boundary DTO module user.
+ * TIDAK berisi data identitas auth (email/roles) — itu milik {@code auth.api.dto.UserDto}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record UserProfileDto(

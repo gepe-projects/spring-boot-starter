@@ -1,7 +1,7 @@
 package com.gepe.app.auth.internal.listener;
 
 import com.gepe.app.auth.internal.service.UserDetailsCache;
-import com.gepe.app.user.api.ProfileUpdated;
+import com.gepe.app.user.api.event.ProfileUpdatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
@@ -24,7 +24,7 @@ class ProfileUpdateCacheEvictor {
     }
 
     @ApplicationModuleListener
-    void onProfileUpdated(ProfileUpdated event) {
+    void onProfileUpdated(ProfileUpdatedEvent event) {
         userDetailsCache.evict(event.userId());
         log.debug("Evicted user details cache for profile update: userId={}", event.userId());
     }

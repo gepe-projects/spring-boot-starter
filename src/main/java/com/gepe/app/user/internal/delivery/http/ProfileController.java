@@ -4,7 +4,7 @@ import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.web.api.ApiVersions;
 import com.gepe.app.platform.web.context.RequestContext;
 import com.gepe.app.platform.web.response.ApiResponse;
-import com.gepe.app.user.api.UserProfileDto;
+import com.gepe.app.user.api.dto.UserProfileDto;
 import com.gepe.app.user.internal.dto.UpdateProfileRequest;
 import com.gepe.app.user.internal.service.ProfileServiceImpl;
 import jakarta.validation.Valid;

@@ -1,4 +1,4 @@
-package com.gepe.app.auth.api;
+package com.gepe.app.auth.api.dto;
 
 /**
  * Status akun user — boundary enum public (dipakai entity {@code auth.users.status},

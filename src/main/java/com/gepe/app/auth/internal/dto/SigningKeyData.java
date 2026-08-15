@@ -1,5 +1,6 @@
 package com.gepe.app.auth.internal.dto;
 
+import com.gepe.app.auth.api.dto.SigningKeyStatus;
 import java.time.Instant;
 import java.util.UUID;
 

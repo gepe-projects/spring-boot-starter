@@ -1,8 +1,8 @@
 package com.gepe.app.admin.internal.service;
 
 import com.gepe.app.auth.api.KeyManagementService;
-import com.gepe.app.auth.api.RotatedKeyResponse;
-import com.gepe.app.auth.api.SigningKeyInfo;
+import com.gepe.app.auth.api.dto.RotatedKeyDto;
+import com.gepe.app.auth.api.dto.SigningKeyDto;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,15 +22,15 @@ public class AdminKeyService {
     private final AdminAuditService auditService;
 
     @Transactional
-    public RotatedKeyResponse rotateSigningKey(UUID actorId) {
-        RotatedKeyResponse result = keyManagementService.rotateSigningKey();
+    public RotatedKeyDto rotateSigningKey(UUID actorId) {
+        RotatedKeyDto result = keyManagementService.rotateSigningKey();
         auditService.record(actorId, "SIGNING_KEY_ROTATED", "SIGNING_KEY", result.kid().toString(),
                 Map.of("status", result.status(), "notBefore", result.notBefore()));
         return result;
     }
 
     @Transactional(readOnly = true)
-    public List<SigningKeyInfo> listSigningKeys() {
+    public List<SigningKeyDto> listSigningKeys() {
         return keyManagementService.listSigningKeys();
     }
 }

@@ -1,6 +1,6 @@
 package com.gepe.app.user.internal.entity;
 
-import com.gepe.app.user.api.Gender;
+import com.gepe.app.user.api.dto.Gender;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

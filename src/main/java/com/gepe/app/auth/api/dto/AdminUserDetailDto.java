@@ -1,11 +1,11 @@
-package com.gepe.app.auth.api;
+package com.gepe.app.auth.api.dto;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Detail user untuk halaman admin — boundary record public.
+ * Detail user untuk halaman admin — boundary DTO public.
  * Berisi semua field yang relevan untuk manajemen akun (status, roles, audit timestamp).
  */
 public record AdminUserDetailDto(

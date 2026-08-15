@@ -4,10 +4,11 @@ import com.gepe.app.admin.internal.dto.AdminAuditLogDto;
 import com.gepe.app.admin.internal.service.AdminAuditService;
 import com.gepe.app.admin.internal.service.AdminKeyService;
 import com.gepe.app.admin.internal.service.AdminUserService;
-import com.gepe.app.auth.api.AdminUserDetailDto;
-import com.gepe.app.auth.api.RotatedKeyResponse;
-import com.gepe.app.auth.api.UserDto;
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.AdminUserDetailDto;
+import com.gepe.app.auth.api.dto.RotatedKeyDto;
+import com.gepe.app.auth.api.dto.SigningKeyStatus;
+import com.gepe.app.auth.api.dto.UserDto;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.platform.config.i18n.MessageHelper;
 import com.gepe.app.platform.pagination.CursorPage;
 import com.gepe.app.platform.support.Uuidv7;
@@ -98,7 +99,7 @@ class AdminControllerTest {
 
     @Test
     void rotateSigningKeyServesUnderAdminKeysPath() throws Exception {
-        RotatedKeyResponse response = new RotatedKeyResponse(Uuidv7.generate(), "ACTIVE", Instant.now());
+        RotatedKeyDto response = new RotatedKeyDto(Uuidv7.generate(), SigningKeyStatus.ACTIVE, Instant.now());
         when(adminKeyService.rotateSigningKey(any())).thenReturn(response);
         when(messageHelper.get("admin.keys_rotated_success")).thenReturn("rotated");
 

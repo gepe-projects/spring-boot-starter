@@ -1,10 +1,10 @@
 package com.gepe.app.admin.internal.service;
 
-import com.gepe.app.auth.api.AdminUserDetailDto;
-import com.gepe.app.auth.api.RoleType;
 import com.gepe.app.auth.api.UserAdminService;
-import com.gepe.app.auth.api.UserDto;
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.AdminUserDetailDto;
+import com.gepe.app.auth.api.dto.RoleType;
+import com.gepe.app.auth.api.dto.UserDto;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.platform.pagination.CursorPage;
 import java.util.Map;
 import java.util.Set;

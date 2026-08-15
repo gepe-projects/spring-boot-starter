@@ -1,7 +1,7 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.RoleType;
-import com.gepe.app.auth.api.UserStatus;
+import com.gepe.app.auth.api.dto.RoleType;
+import com.gepe.app.auth.api.dto.UserStatus;
 import com.gepe.app.auth.internal.entity.Role;
 import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.exception.AuthError;

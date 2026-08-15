@@ -1,7 +1,7 @@
 package com.gepe.app.auth.internal.service;
 
-import com.gepe.app.auth.api.UserDto;
 import com.gepe.app.auth.api.UserService;
+import com.gepe.app.auth.api.dto.UserDto;
 import com.gepe.app.auth.internal.entity.User;
 import com.gepe.app.auth.internal.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

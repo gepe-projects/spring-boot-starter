@@ -2,9 +2,9 @@ package com.gepe.app.user.internal.service;
 
 import com.gepe.app.platform.exception.ServiceException;
 import com.gepe.app.user.api.ProfileService;
-import com.gepe.app.user.api.ProfileUpdated;
-import com.gepe.app.user.api.UserProfileDto;
-import com.gepe.app.user.api.UserRegistered;
+import com.gepe.app.user.api.dto.UserProfileDto;
+import com.gepe.app.user.api.event.ProfileUpdatedEvent;
+import com.gepe.app.user.api.event.UserRegisteredEvent;
 import com.gepe.app.user.internal.dto.UpdateProfileRequest;
 import com.gepe.app.user.internal.entity.UserProfile;
 import com.gepe.app.user.internal.exception.UserProfileError;
@@ -50,7 +50,7 @@ public class ProfileServiceImpl implements ProfileService {
             // Satu-satunya constraint yang bisa dilanggar di sini adalah PK → anggap sudah selesai.
             return;
         }
-        events.publishEvent(new UserRegistered(userId, email, displayName, avatarUrl));
+        events.publishEvent(new UserRegisteredEvent(userId, email, displayName, avatarUrl));
     }
 
     /** Update profil (get-or-create: backfill user lama yang belum punya baris profil). */
@@ -88,7 +88,7 @@ public class ProfileServiceImpl implements ProfileService {
         }
         // Profil berubah → module auth harus evict cache komposit GET /auth/me.
         // Event AFTER_COMMIT + idempotent (evict), dikirim lewat event publication registry.
-        events.publishEvent(new ProfileUpdated(userId));
+        events.publishEvent(new ProfileUpdatedEvent(userId));
         return toDto(profile);
     }
 

@@ -1,5 +1,6 @@
 package com.gepe.app.user.api;
 
+import com.gepe.app.user.api.dto.UserProfileDto;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,7 +17,7 @@ public interface ProfileService {
 
     /**
      * Inisialisasi profil untuk user BARU. Idempotent: jika profil sudah ada, tidak melakukan apa-apa
-     * dan TIDAK publish event {@code UserRegistered} (aman dipanggil ulang / retry).
+     * dan TIDAK publish event {@code UserRegisteredEvent} (aman dipanggil ulang / retry).
      */
     void initialize(UUID userId, String email, String displayName, String avatarUrl);
 }

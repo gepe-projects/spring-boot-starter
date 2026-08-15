@@ -1,6 +1,6 @@
 package com.gepe.app.user.internal.dto;
 
-import com.gepe.app.user.api.Gender;
+import com.gepe.app.user.api.dto.Gender;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;

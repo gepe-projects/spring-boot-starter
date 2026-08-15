@@ -1,7 +1,7 @@
 package com.gepe.app.auth.internal.service;
 
+import com.gepe.app.auth.api.dto.SigningKeyStatus;
 import com.gepe.app.auth.internal.dto.SigningKeyData;
-import com.gepe.app.auth.internal.dto.SigningKeyStatus;
 import com.gepe.app.auth.internal.entity.SigningKey;
 import com.gepe.app.auth.internal.repository.SigningKeyRepository;
 import java.time.Instant;
